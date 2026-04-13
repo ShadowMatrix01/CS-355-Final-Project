@@ -19,11 +19,12 @@ the ability to eat the ghosts for 10 seconds.
 • Game Play: The game ends with a win if Pac-Man eats all the Pac-Dots. The game ends in
 lost if Pac-Man is eaten by a ghost*/
 
-int pacman_x = 1;
-int pacman_y = 1;
+int pacman_x = 30;
+int pacman_y = 15;
 int main(int argc, char * argv[]) {
    WINDOW *game_win;
    int pacman_move;
+   int direction = KEY_LEFT; //https://pacmancode.com/start-positions
    bool running = true;
    initscr();
    clear();
@@ -37,44 +38,50 @@ int main(int argc, char * argv[]) {
    curs_set(0); //Cursor hidden from terminal, because that breaks game flow.
    refresh(); //Stdscr refreshed
    wrefresh(game_win); //Game window refreshed.
+   nodelay(stdscr, TRUE); //Had to add this, because input is normally blocking.
+   
    while (running) {
+    mvwaddch(game_win, pacman_y, pacman_x, ' '); //Needed to clear trailing output, similar to pygame.
     pacman_move = getch();
     move(30,0);
     clrtoeol(); //This is how to avoid the weird line artifacting appparently.
     switch(pacman_move) {
         case KEY_UP: 
+        case KEY_DOWN:
+        case KEY_LEFT:
+        case KEY_RIGHT:
+             direction = pacman_move;
+             break;
+        case 27: 
+             running = false;
+             break;
+    }
+    switch(direction) {
+        case KEY_UP: 
              if (pacman_y > 1) { //Needed to avoid an out of bounds bug.
                 pacman_y--; //Pacman moves up by decrementing y axis by one.
              }
-             mvprintw(HEIGHT, 0, "Up has been pressed");
              break;
         case KEY_DOWN:
              if (pacman_y < HEIGHT - 2) { //Needed to avoid an out of bounds bug.
                 pacman_y++; //Pacman moves down by incrementing y axis by one.
              }
-             mvprintw(HEIGHT, 0, "Down has been pressed");
              break;
         case KEY_LEFT:
              if (pacman_x > 1) {
                 pacman_x--;
              }
-             mvprintw(HEIGHT,0, "Left pressed");
              break;
         case KEY_RIGHT:
              if (pacman_x < WIDTH - 2) {
                 pacman_x++;
              }
-             mvprintw(HEIGHT,0, "Right pressed");
              break;
-        case 27: 
-             running = false;
-             break;
-        default:
-            break;
     }
     mvwaddch(game_win, pacman_y, pacman_x, 'P'); //https://docs.oracle.com/cd/E86824_01/html/E54767/mvwaddch-3curses.html
     refresh(); //Stdscr refreshed
     wrefresh(game_win); //Game window refreshed.
+    napms(100); 
    }
    endwin();
    return 0;
