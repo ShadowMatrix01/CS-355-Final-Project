@@ -33,39 +33,44 @@ The fruit appears after 70 dots are eaten and again after 170 dots are eaten unl
 
 int pacman_x = 1;
 int pacman_y = 1;
+int next_direction_x=1;
+int next_direction_y=1;
 int main(int argc, char * argv[]) { 
-char stage[HEIGHT][WIDTH + 1] = { //WIDTH + 1 because of the C null terminator, which is why this was wreaking havoc LOL!
+   char stage[HEIGHT][WIDTH + 1] = { 
     "############################################################", 
-    "#..........................................................#", 
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#",
-    "#..........................................................#", 
+    "#      .....                ###                ......      #", 
+    "#.########## ############## ### ############## ###########.#",
+    "# ########## ############## ### ############## ########### #",
+    "#.########## ############## ### ############## ###########.#",
+    "#                                                          #",
+    "#.########### ...##########################... ###########.#",
+    "#.########### ##.##########################.## ###########.#",
+    "#.......      ##.##########################.##       ......#",
+    "############# ##............####............## #############",
+    "           ## ############# #### ############# ##           ",
+    "           ## ############# #### ############# ##           ",
+    "           ## ##                            ## ##           ",
+    "############# ##                            ## #############",
+    "                                                            ",
+    "############# ##                            ## #############",
+    "           ## ##                            ## ##           ",
+    "           ## ## ########################## ## ##           ",
+    "           ## ## ########################## ## ##           ",
+    "############# ## ########################## ## #############",
+    "#.........      .           ####           .     ..........#",
+    "#.######## ################ #### ################ ########.#",
+    "#.######## ################ #### ################ ########.#",
+    "# .....###                                        ###..... #",
+    "######.### ###### ######################## ###### ###.######",
+    "######.### ###### ######################## ###### ###.######",
+    "#          ######           ####           ######          #",
+    "#.#########################.####.#########################.#",
+    "#..........      ...........    ...........       .........#", 
     "############################################################"  
-};						
+};	
+
+//WIDTH = 60, HEIGHT = 30
+//GHOST SPAWN IN MIDDLE					
 								
    WINDOW *game_win;
    int pacman_move;
@@ -99,6 +104,7 @@ char stage[HEIGHT][WIDTH + 1] = { //WIDTH + 1 because of the C null terminator, 
    while (running) {
     werase(game_win); //Game window is cleared of previous screen.
     mvwaddch(game_win, pacman_y, pacman_x, ' '); //Needed to clear trailing output, similar to pygame.
+    
     for (int y = 0; y < HEIGHT; y++) { //This loop draws the stage as it evolves. Starting with the y axis, or the columns.
 		for (int x = 0; x < WIDTH; x++) { //Same as above, but for x axis
 			if (stage[y][x] == WALL) {
@@ -115,6 +121,8 @@ char stage[HEIGHT][WIDTH + 1] = { //WIDTH + 1 because of the C null terminator, 
 		}
 	}
     pacman_move = getch();
+    next_direction_x = pacman_x;
+    next_direction_y = pacman_y;
     switch(pacman_move) {
         case KEY_UP: 
         case KEY_DOWN:
@@ -126,29 +134,23 @@ char stage[HEIGHT][WIDTH + 1] = { //WIDTH + 1 because of the C null terminator, 
              running = false;
              break;
     }
-    switch(direction) {
-        case KEY_UP: 
-             if (pacman_y > 1 && stage[pacman_y][pacman_x]!=WALL) { //Needed to avoid an out of bounds bug.
-                pacman_y--; //Pacman moves up by decrementing y axis by one.
-             }
-             break;
-        case KEY_DOWN:
-             if (pacman_y < HEIGHT - 2) { //Needed to avoid an out of bounds bug.
-                pacman_y++; //Pacman moves down by incrementing y axis by one.
-             }
-             break;
-        case KEY_LEFT:
-             if (pacman_x > 1) {
-                pacman_x--;
-             }
-             break;
-        case KEY_RIGHT:
-             if (pacman_x < WIDTH - 2) {
-                pacman_x++;
-             }
-             break;
+    switch(direction) { //Switched because of collision conflicts, the program needs to predict what happens next rather
+		//than just moving and then calculating conflict.
+        case KEY_UP:    next_direction_y--; break;
+        case KEY_DOWN:  next_direction_y++; break;
+        case KEY_LEFT:  next_direction_x--; break;
+        case KEY_RIGHT: next_direction_x++; break;
     }
-    
+    //Prevents an out of bound error for the program.
+    if (next_direction_y >= 0 && next_direction_y < HEIGHT &&  next_direction_x >= 0 && next_direction_x < WIDTH) {
+		if (stage[next_direction_y][next_direction_x] != WALL) { //This will only update pacman x and pacman y if its not a wall.
+            pacman_x = next_direction_x;
+            pacman_y = next_direction_y;
+		}
+		if (stage[next_direction_y][next_direction_x] == DOT) {
+			stage[next_direction_y][next_direction_x] = EATEN;
+		}
+	}
     mvwaddch(game_win, pacman_y, pacman_x, 'P' | COLOR_PAIR(1)); //https://docs.oracle.com/cd/E86824_01/html/E54767/mvwaddch-3curses.html
     wrefresh(game_win); //Game window refreshed.
     napms(100); 
