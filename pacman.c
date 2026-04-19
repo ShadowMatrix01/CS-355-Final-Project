@@ -31,40 +31,50 @@ The fruits feature different mechanics in certain games, but across all of them,
 In the original Pac-Man, the fruits are located below the Regeneration Chamber and won't move at all. 
 The fruit appears after 70 dots are eaten and again after 170 dots are eaten unless the first fruit is still there. They will disappear if they are not eaten after 9-10 seconds.*/
 
+/*SCORING SYSTEM:
+ * Pac-Man scores points by consuming dots (10 pts), power pellets (50 pts), fruits (100–5,000 pts), and frightened ghosts (200–1,600 pts). 
+ * The maximum score, achieved by eating everything on all 256 levels without losing a life, is 3,333,360 points. 
+ * Points increase by chaining ghost kills, and a bonus life is awarded at 10,000 points.*/
+ 
+ /* Lives System:
+  * In the original 1980 Pac-Man arcade game, the player starts with 3 lives (one active Pac-Man and two in reserve). 
+  * The game allows for configuration changes, but the default setting is 3, with an extra life awarded at 10,000 points.*/
 int pacman_x = 1;
 int pacman_y = 1;
 int next_direction_x=1;
 int next_direction_y=1;
+int score = 0;
+int lives = 3;
 int main(int argc, char * argv[]) { 
    char stage[HEIGHT][WIDTH + 1] = { 
     "############################################################", 
-    "#      .....                ###                ......      #", 
-    "#.########## ############## ### ############## ###########.#",
-    "# ########## ############## ### ############## ########### #",
-    "#.########## ############## ### ############## ###########.#",
+    "#    .......                ###                ......      #", 
+    "#  #########   ###########  ###  ############  ########## .#",
+    "#  #########   ###########  ###  ############  ##########  #",
+    "#  #########   ###########  ###  ############  ########## .#",
     "#                                                          #",
-    "#.########### ...##########################... ###########.#",
-    "#.########### ##.##########################.## ###########.#",
-    "#.......      ##.##########################.##       ......#",
-    "############# ##............####............## #############",
-    "           ## ############# #### ############# ##           ",
-    "           ## ############# #### ############# ##           ",
-    "           ## ##                            ## ##           ",
-    "############# ##                            ## #############",
+    "#. #########  ... ######################## ... ########## .#",
+    "#. #########   #. ######################## .#  ########## .#",
+    "#.......       #. ######################## .#        ......#",
+    "#############  #............####............#  #############",
+    "           ##  ###########  ####  ###########  ##           ",
+    "           ##  ###########  ####  ###########  ##           ",
+    "           ##  #                            #  ##           ",
+    "#############  #                            #  #############",
     "                                                            ",
-    "############# ##                            ## #############",
-    "           ## ##                            ## ##           ",
-    "           ## ## ########################## ## ##           ",
-    "           ## ## ########################## ## ##           ",
-    "############# ## ########################## ## #############",
+    "#############  #                            #  #############",
+    "           ##  #                            #  ##           ",
+    "           ##  #  ########################  #  ##           ",
+    "           ##  #  ########################  #  ##           ",
+    "#############  #  ########################  #  #############",
     "#.........      .           ####           .     ..........#",
-    "#.######## ################ #### ################ ########.#",
-    "#.######## ################ #### ################ ########.#",
+    "#. #######  ##############  ####  ##############  ####### .#",
+    "#. #######  ##############  ####  ##############  ####### .#",
     "# .....###                                        ###..... #",
-    "######.### ###### ######################## ###### ###.######",
-    "######.### ###### ######################## ###### ###.######",
-    "#          ######           ####           ######          #",
-    "#.#########################.####.#########################.#",
+    "##### .###  #####  ######################  #####  ###. #####",
+    "##### .###  #####  ######################  #####  ###. #####",
+    "#           #####           ####           #####           #",
+    "#. ####################### .####. ####################### .#",
     "#..........      ...........    ...........       .........#", 
     "############################################################"  
 };	
@@ -94,14 +104,19 @@ int main(int argc, char * argv[]) {
    clear();
    noecho();
    cbreak();
-   keypad(stdscr, TRUE);
-   game_win = newwin(HEIGHT, WIDTH, 0, 0); //Window initialized with size 60 x 30. See comment for reason.
+  
+
+   
+   game_win = newwin(HEIGHT, WIDTH, 10, 90); //Window placed at X:90, and Y: 10.
   
    curs_set(0); //Cursor hidden from terminal, because that breaks game flow.
    wrefresh(game_win); //Game window refreshed.
-   nodelay(stdscr, TRUE); //Had to add this, because input is normally blocking.
+   keypad(game_win, TRUE);
+   nodelay(game_win, TRUE);//Had to add this, because input is normally blocking.
    
    while (running) {
+	mvprintw(8, 90, "SCORE: %d LIVES: %d", score, lives); //https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/printw.html
+	refresh();
     werase(game_win); //Game window is cleared of previous screen.
     mvwaddch(game_win, pacman_y, pacman_x, ' '); //Needed to clear trailing output, similar to pygame.
     
@@ -120,7 +135,12 @@ int main(int argc, char * argv[]) {
 			}
 		}
 	}
-    pacman_move = getch();
+	pacman_move = ERR; //Without this, the program would get confused and pacman would get stuck on walls.
+	int ch;
+	while ((ch = wgetch(game_win)) != ERR) { //Provided there is no error, then the movement will be captured.
+		pacman_move = ch; 
+	}
+
     next_direction_x = pacman_x;
     next_direction_y = pacman_y;
     switch(pacman_move) {
@@ -144,12 +164,14 @@ int main(int argc, char * argv[]) {
     //Prevents an out of bound error for the program.
     if (next_direction_y >= 0 && next_direction_y < HEIGHT &&  next_direction_x >= 0 && next_direction_x < WIDTH) {
 		if (stage[next_direction_y][next_direction_x] != WALL) { //This will only update pacman x and pacman y if its not a wall.
-            pacman_x = next_direction_x;
             pacman_y = next_direction_y;
+            pacman_x = next_direction_x;
 		}
 		if (stage[next_direction_y][next_direction_x] == DOT) {
 			stage[next_direction_y][next_direction_x] = EATEN;
+			score+=10;
 		}
+		
 	}
     mvwaddch(game_win, pacman_y, pacman_x, 'P' | COLOR_PAIR(1)); //https://docs.oracle.com/cd/E86824_01/html/E54767/mvwaddch-3curses.html
     wrefresh(game_win); //Game window refreshed.
