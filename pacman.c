@@ -215,6 +215,36 @@ int main(int argc, char * argv[]) {
     }
 	}
 	
+
+    //Ghost Section///////////////////////////
+    Ghost blinky;
+    Ghost pinky;
+    Ghost inky;
+    Ghost clyde;
+
+    //blinky
+    blinky.x = 30;
+    blinky.y = 12;
+    mvwaddch(game_win, blinky.y, blinky.x, 'G' | COLOR_PAIR(4));
+    wrefresh(game_win);
+
+    //pinky
+    pinky.x = 30;
+    pinky.y = 15;
+    mvwaddch(game_win, pinky.y, pinky.x, 'G' | COLOR_PAIR(6));
+    wrefresh(game_win);
+    //inky
+    inky.x = 28;
+    inky.y = 15;
+    mvwaddch(game_win, inky.y, inky.x, 'G' | COLOR_PAIR(3));
+    wrefresh(game_win);
+    //clyde
+    clyde.x = 32;
+    clyde.y = 15;
+    mvwaddch(game_win, clyde.y, clyde.x, 'G' | COLOR_PAIR(1));
+    wrefresh(game_win);
+	//End of Ghost Section//////////////////////
+    
     mvwaddch(game_win, pacman_y, pacman_x, 'P' | COLOR_PAIR(1)); //https://docs.oracle.com/cd/E86824_01/html/E54767/mvwaddch-3curses.html
     wrefresh(game_win); //Game window refreshed.
     napms(100); 
