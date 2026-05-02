@@ -47,11 +47,24 @@ int next_direction_y=1;
 int score = 0;
 int lives = 3;
 int cherry_end_time = 0;
+int start_time = 0;
 int seconds = 10; //For cherry timer.
 bool going_once = true;
 bool start_timer_cherry = false;
+
+//Defines how the ghosts behave
+typedef struct ghosts{
+    int x, y; // Where the ghost is located
+    int prior_x, prior_y; //Next location of the ghost
+    int target_x, target_y; //Goal position
+    int speed;
+    int mode; // Determines if they are chasing, scattering, or frightened
+    bool ghostTime;
+} Ghost;
+
 void ghost_time() {
 	//Will need timer, aswell as cool effect and other things.
+    
 }
 int main(int argc, char * argv[]) { 
    char stage[HEIGHT][WIDTH + 1] = { 
@@ -87,24 +100,24 @@ int main(int argc, char * argv[]) {
     "############################################################"  
 };	
 
-//WIDTH = 60, HEIGHT = 30
-//GHOST SPAWN IN MIDDLE					
-								
+   //WIDTH = 60, HEIGHT = 30
    WINDOW *game_win;
    int pacman_move;
+   int previous_direction_x = KEY_RIGHT;
+   int previous_direction_y = KEY_DOWN;
    int direction = KEY_RIGHT; //https://pacmancode.com/start-positions
    bool running = true;
    initscr();
    start_color(); //Needed to initialize color pairs. 
    //Needed for codespaces to not highlight text or show grey as the background
    use_default_colors();
-   init_pair(1, COLOR_GREEN, -1); //Key 1, Green Character, Black Background.
    init_pair(1, COLOR_YELLOW, -1); //Key 1, Yellow Character, Black Background.
    init_pair(2, COLOR_BLUE, -1);   //Key 2, Blue Character, Black Background.
    init_pair(3, COLOR_CYAN, -1); //Key 3, Magenta Character, Black Background.
    init_pair(4, COLOR_RED, -1);    //Key 4, Red Character, Black Background.
    init_pair(5, COLOR_GREEN, -1); //Key 5, Green Character, Black Background.
-   
+   init_pair(6, COLOR_MAGENTA, -1); // Key 6, "Pinkish" Character, Black Background.
+
    //NOTE: While in a normal pacman game, the dots would be yellow. I dislike how much the yellow blends
    //with pacman because you cannot change the opacity of a color in ncurses. Or if is, it adds unnecessary bloat.
    if(has_colors() == FALSE){	
@@ -125,7 +138,30 @@ int main(int argc, char * argv[]) {
    keypad(game_win, TRUE);
    nodelay(game_win, TRUE);//Had to add this, because input is normally blocking.
    
+    //Declare ghosts
+    Ghost blinky;
+    blinky.x = 30; 
+    blinky.y = 12;
+    blinky.prior_x = -1;
+    blinky.prior_y = -1;
+    blinky.mode = 1; //Set to scatter
+
+    Ghost pinky;
+    pinky.x = 30;
+    pinky.y = 15;
+    
+    Ghost inky;
+    inky.x = 28;
+    inky.y = 15;
+    
+    
+    Ghost clyde;
+    clyde.x = 32;
+    clyde.y = 15;
+   //-----------------------------------------------//
+   start_time = time(NULL);
    while (running) {
+    
 	mvprintw(8, 90, "SCORE: %d                                           LIVES: %d", score, lives); //https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/printw.html
 	refresh();
     werase(game_win); //Game window is cleared of previous screen.
@@ -158,6 +194,11 @@ int main(int argc, char * argv[]) {
 			}
 		}
 	}
+    if (direction == KEY_UP || direction == KEY_DOWN) {
+        previous_direction_y = direction;
+    } else if (direction == KEY_LEFT || direction == KEY_RIGHT) {
+        previous_direction_x = direction;
+    }
 	pacman_move = ERR; //Without this, the program would get confused and pacman would get stuck on walls.
 	int ch;
 	while ((ch = wgetch(game_win)) != ERR) { //Provided there is no error, then the movement will be captured.
@@ -189,20 +230,45 @@ int main(int argc, char * argv[]) {
 		if ((stage[next_direction_y][next_direction_x] != WALL) && (stage[next_direction_y][next_direction_x] != WALL2)) { //This will only update pacman x and pacman y if its not a wall.
             pacman_y = next_direction_y;
             pacman_x = next_direction_x;
-		}
-		if (stage[next_direction_y][next_direction_x] == DOT || stage[next_direction_y][next_direction_x] == CHERRY || stage[next_direction_y][next_direction_x] == SPECIAL) {
-			if (stage[next_direction_y][next_direction_x] == DOT) {
-				score+=10;
-			} else if (stage[next_direction_y][next_direction_x] == CHERRY) {
-				score+=100;
-			} else {
-				ghost_time();
-			}
-			stage[next_direction_y][next_direction_x] = EATEN;
-		}
-		
-	}
-	//This is how pacman can move through the tunnel and teleport.
+		} else {
+           if (direction == KEY_UP) {
+              if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1] !=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
+                pacman_x-=1;
+                direction = KEY_LEFT;
+              } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
+                pacman_x+=1;
+                direction = KEY_RIGHT;
+              }
+           } else if (direction == KEY_DOWN) {
+              if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1]!=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
+                pacman_x-=1;
+                direction = KEY_LEFT;
+              } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
+                pacman_x+=1;
+                direction = KEY_RIGHT;
+              }
+           } else {
+                if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1]!=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
+                    pacman_x-=1;
+                    direction = KEY_LEFT;
+                } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
+                    pacman_x+=1;
+                    direction = KEY_RIGHT;
+                }
+           }
+        }
+        if (stage[pacman_y][pacman_x] == DOT || stage[pacman_y][pacman_x] == CHERRY || stage[pacman_y][pacman_x] == SPECIAL) {
+                if (stage[pacman_y][pacman_x] == DOT) {
+                    score += 10;
+                } else if (stage[pacman_y][pacman_x] == CHERRY) {
+                    score += 100;
+                } else {
+                    ghost_time();
+                }
+                stage[pacman_y][pacman_x] = EATEN;
+        }
+	} else {
+    //This is how pacman can move through the tunnel and teleport.
 	if (next_direction_y == 14) {
 		if (next_direction_x < 0) { 
 			pacman_x = WIDTH - 1;
@@ -213,15 +279,96 @@ int main(int argc, char * argv[]) {
         pacman_y = 14;
         direction = KEY_RIGHT;
     }
-	}
+    }
+    }
 	
+
+    //Ghost Section///////////////////////////
+
+    //blinky:
+    //Most aggrressive ghost
+    //Gets progressively faster the less dots there are
+    //In scatter mode, he targets the top right corner
+    //In chase mode, he tracks the current position of pacman
+    
+    int move_x = 0;
+    int move_y = 0;
+    bool move_taken = false;
+
+        //Chase mode
+        if(blinky.mode == 0){
+            blinky.target_x = pacman_x;
+            blinky.target_y = pacman_y;
+        }
+        //Scatter mode
+        else if((time(NULL) - start_time <= 10)|| blinky.mode == 1){
+            //(58, 1) for top-right corner
+            blinky.target_x = 58;
+            blinky.target_y = 1;
+        }
+        //Move blinky
+            if(blinky.y < blinky.target_y) move_y = 1;
+            else if(blinky.y > blinky.target_y) move_y = -1;
+            
+
+            if(blinky.x < blinky.target_x) move_x = 1;
+            else if(blinky.x > blinky.target_x) move_x = -1;
+            
+        //Prevents getting stuck at teleport
+            if((blinky.x + move_x < 0 || blinky.x + move_x >= WIDTH) && blinky.y == 14){
+                blinky.prior_x = blinky.x;
+                blinky.prior_y = blinky.y;
+                blinky.x += move_x;
+                continue;
+            }
+
+        if (blinky.y + move_y >= 0 && blinky.y + move_y < HEIGHT &&  blinky.x + move_x >= 0 && blinky.x + move_x < WIDTH) { //Movement is within bounds
+            if ((stage[blinky.y][blinky.x + move_x] != WALL) && (stage[blinky.y][blinky.x + move_x] != WALL2) && (blinky.x + move_x != blinky.prior_x)) { //Prevents moving into a wall
+                //Updates position
+                blinky.prior_x = blinky.x;
+                blinky.prior_y = blinky.y;
+                blinky.x += move_x;
+                move_taken = true;
+            }
+            else if ((stage[blinky.y + move_y][blinky.x] != WALL) && (stage[blinky.y + move_y][blinky.x] != WALL2) && (blinky.y + move_y != blinky.prior_y)){
+                blinky.prior_x = blinky.x;
+                blinky.prior_y = blinky.y;
+                blinky.y += move_y;
+                move_taken = true;
+            }
+            //Gaurantees that if the optimal path can't be taken, a move is still made
+            else if ((stage[blinky.y][blinky.x - move_x] != WALL) && (stage[blinky.y][blinky.x - move_x] != WALL2) && (blinky.x - move_x != blinky.prior_x) && !move_taken){
+                blinky.prior_x = blinky.x;
+                blinky.x -= move_x;
+                move_taken = true;
+            }
+            else if ((stage[blinky.y - move_y][blinky.x] != WALL) && (stage[blinky.y - move_y][blinky.x] != WALL2) && (blinky.y - move_y != blinky.prior_y) && !move_taken){
+                blinky.prior_y = blinky.y;
+                blinky.y -= move_y;
+                move_taken = true;
+            }
+    }
+    //Teleport logic
+    if (blinky.y == 14) {
+		if (blinky.x < 0) { 
+			blinky.x = WIDTH - 1;
+    } else if (blinky.x >= WIDTH) { 
+        blinky.x = 0;
+    }
+	}
+    
+    mvwaddch(game_win, blinky.y, blinky.x, 'G' | COLOR_PAIR(4));
+    mvwaddch(game_win, pinky.y, pinky.x, 'G' | COLOR_PAIR(6));
+    mvwaddch(game_win, inky.y, inky.x, 'G' | COLOR_PAIR(3));
+    mvwaddch(game_win, clyde.y, clyde.x, 'G' | COLOR_PAIR(1));
+
     mvwaddch(game_win, pacman_y, pacman_x, 'P' | COLOR_PAIR(1)); //https://docs.oracle.com/cd/E86824_01/html/E54767/mvwaddch-3curses.html
     wrefresh(game_win); //Game window refreshed.
     napms(100); 
    }
+
    endwin();
    return 0;
 }
 
 //Note, to compile gcc -o pacman pacman.c -lncurses
-
