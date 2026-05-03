@@ -127,6 +127,7 @@ typedef struct ghosts{
     int mode; //Determines if they are chasing, scattering, or frightened
     bool ghostTime;
     bool trapped; //Determine if ghost is in spawn
+    bool free; //Allows ghost to bypass WALL2
 } Ghost;
 Ghost blinky, pinky, inky, clyde; //Moved here to allow reset logic to occur unlike before.
 void ghost_time() {
@@ -456,9 +457,7 @@ int main(int argc, char * argv[]) {
         }
       }
     }
-	
-
-      //Ghost Section///////////////////////////
+	  //Ghost Section///////////////////////////
 
     //blinky:
     //Most aggrressive ghost
@@ -722,6 +721,148 @@ else{
 
         double best_disI = 100000.0; //Best distance for inky
         int dirI; //Used for inky's direction
+
+        for(int i = 0; i<4; i++){ //Check each path and determine which one is best
+            //Prevents U-turns
+            if((i == 0 && inky.dir == 1) || (i == 1 && inky.dir == 0) || (i == 2 && inky.dir == 3) || (i == 3 && inky.dir == 2)){
+                continue;
+            }
+        
+            int test_x = inky.x; //Temp variable for potential x positions
+            int test_y = inky.y; //Temp variable for potential y postions
+
+            // Predict where ghost would be in this direction
+            if(i == 0) test_y--;      // Up
+            else if(i == 1) test_y++; // Down
+            else if(i == 2) test_x--; // Left
+            else if(i == 3) test_x++; // Right
+
+            if(pathI[i] == 1){
+                double dis = pow(inky.target_x - test_x,2) + pow(inky.target_y - test_y, 2);
+                if(dis<best_disI){
+                    dirI = i; //Store the best direction
+                    best_disI = dis;
+                }
+                else{ //If path not valid, move onto next
+                    continue;
+                }
+            }
+        }
+    inky.dir = dirI; //Set the direction
+
+    switch(inky.dir){ //Move along the direction
+            case 0:
+            inky.y--;
+            break;
+            case 1:
+            inky.y++;
+            break;
+            case 2:
+            inky.x--;
+            break;
+            case 3:
+            inky.x++;
+            break;
+        }
+    //Usage of the teleporter
+    if (inky.y == 14) {
+		if (inky.x - 1 < 0) { 
+			inky.x = WIDTH - 1;
+			inky.dir = 2;
+        }else if (inky.x + 1 >= WIDTH) { 
+            inky.x = 0;
+            inky.dir = 3;
+        }
+    }
+//clyde:
+//When in scatter mode, targets the bottom left of the map
+//When in chase mode, if 8 positions or further from pacman, acts like blinky
+//If within 8 positions of pacman, retreats to his corner
+
+if(clyde.trapped){
+    if( score < 600){
+        clyde.target_x = 30;
+        clyde.target_y = 12;
+    }
+    if(score >= 600){
+        clyde.free = true;
+    }
+    if (inky.x == 30 && inky.y == 12) {
+            clyde.trapped = false;
+        }
+    }
+else{
+    //Disables the ability to move through ghost house
+        if(!clyde.trapped){
+            clyde.free = false;
+        }
+
+        //Score of 1000 or more needed to chasing
+        if(score >= 1000){
+            clyde.mode = 0;
+        }
+        
+        //Determine the direction of pacman for chase mode
+        int dx_c = 0, dy_c = 0;
+        if (direction == KEY_UP)    dy_c = -1;
+        if (direction == KEY_DOWN)  dy_c = 1;
+        if (direction == KEY_LEFT)  dx_c = -1;
+        if (direction == KEY_RIGHT) dx_c = 1;
+
+        //Chase mode
+        if(clyde.mode == 0){
+            clyde.target_x = pacman_x + (8*dx_c);
+            clyde.target_y = pacman_y + (8*dy_c);
+        }
+        //Scatter mode
+        else if(clyde.mode == 1){
+            //(1, 28) for bottom-left corner
+            inky.target_x = 1;
+            inky.target_y = 28;
+        }
+        //Frightened mode
+        else if(inky.mode == 2){
+            //logic still needed
+        }
+}
+        int pathC[4] = {0, 0, 0, 0}; //Up Down Left Right (For Inky)
+        if(stage[clyde.y - 1][clyde.x] != WALL && (stage[clyde.y - 1][clyde.x] != WALL2 || clyde.free)) pathC[0] = 1; //Up
+        if(stage[clyde.y + 1][clyde.x] != WALL && stage[clyde.y + 1][clyde.x] != WALL2) pathC[1] = 1; //Down
+        if(stage[clyde.y][clyde.x - 1] != WALL && stage[clyde.y][clyde.x - 1] != WALL2) pathC[2] = 1; //Left
+        if(stage[clyde.y][clyde.x + 1] != WALL && stage[clyde.y][clyde.x + 1] != WALL2) pathC[3] = 1; //Right
+
+        double best_disC = 10000.0;
+        int dirC;
+        for(int i = 0; i<4; i++){ //Check each path and determine which one is best
+            //Prevents U-turns
+            if((i == 0 && clyde.dir == 1) || (i == 1 && clyde.dir == 0) || (i == 2 && clyde.dir == 3) || (i == 3 && clyde.dir == 2)){
+                continue;
+            }
+        
+            int test_x = clyde.x; //Temp variable for potential x positions
+            int test_y = clyde.y; //Temp variable for potential y postions
+
+            // Predict where ghost would be in this direction
+            if(i == 0) test_y--;      // Up
+            else if(i == 1) test_y++; // Down
+            else if(i == 2) test_x--; // Left
+            else if(i == 3) test_x++; // Right
+
+            if(pathI[i] == 1){
+                double dis = pow(clyde.target_x - test_x,2) + pow(clyde.target_y - test_y, 2);
+                if(dis<best_disI){
+                    dirC = i; //Store the best direction
+                    best_disC = dis;
+                }
+                else{ //If path not valid, move onto next
+                    continue;
+                }
+            }
+        }
+        clyde.dir = dirC; //Set the direction
+        
+
+    
 
         for(int i = 0; i<4; i++){ //Check each path and determine which one is best
             //Prevents U-turns
