@@ -69,7 +69,7 @@ void ghost_time() {
     
 }
 int main(int argc, char * argv[]) { 
-   char stage[HEIGHT][WIDTH + 1] = { 
+     char stage[HEIGHT][WIDTH + 1] = { 
     "############################################################", 
     "#    ........              #####              .......      #", 
     "# ########### ############ ##### ############ ############.#",
@@ -137,7 +137,7 @@ int main(int argc, char * argv[]) {
    wrefresh(game_win); //Game window refreshed.
    keypad(game_win, TRUE);
    nodelay(game_win, TRUE);//Had to add this, because input is normally blocking.
-   
+
     //Declare ghosts
     Ghost blinky;
     blinky.x = 30; 
@@ -353,4 +353,3 @@ int main(int argc, char * argv[]) {
 }
 
 //Note, to compile gcc -o pacman pacman.c -lncurses -lm
-
