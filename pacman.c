@@ -43,6 +43,8 @@ The fruit appears after 70 dots are eaten and again after 170 dots are eaten unl
   * The game allows for configuration changes, but the default setting is 3, with an extra life awarded at 10,000 points.*/
 int pacman_x = 1;
 int pacman_y = 1;
+int pacman_old_x = 1;
+int pacman_old_y = 1;
 int next_direction_x=1;
 int next_direction_y=1;
 int score = 0;
@@ -63,6 +65,7 @@ typedef struct ghosts{
     int mode; //Determines if they are chasing, scattering, or frightened
     bool ghostTime;
     bool trapped; //Determine if ghost is in spawn
+    bool free; //Allows ghost to bypass WALL2
 } Ghost;
 
 void ghost_time() {
@@ -70,13 +73,15 @@ void ghost_time() {
     
 }
 int main(int argc, char * argv[]) { 
+//Workaround idea, to ensure that pacman only stops at 3 intersection corns when going up or down,
+//I will use a previous x and previous and if that is invalid, then keep moving in his respective direction.
  char stage[HEIGHT][WIDTH + 1] = { 
     "############################################################", 
     "#    ........              #####              .......      #", 
-    "# ########### ############ ##### ############ ############.#",
-    "# ########### ############ ##### ############ ############ #",
-    "# ########### ############ ##### ############ ############.#",
-    "#                                                          #",
+    "# ############ ########### ##### ############ ############.#",
+    "# ############ ########### ##### ############ ############ #",
+    "# ############ ########### ##### ############ ############.#",
+    "#                                                          #", 
     "#.############.#.##########################.#.############.#",
     "#.############ #.##########################.# ############.#",
     "#.......       #.##########################.#        ......#",
@@ -157,6 +162,7 @@ int main(int argc, char * argv[]) {
     pinky.next_y = 15;
     pinky.mode = 1;
     pinky.trapped = true;
+    pinky.free = false; 
     
     Ghost inky;
     inky.x = 28;
@@ -165,10 +171,16 @@ int main(int argc, char * argv[]) {
     inky.next_y = 15;
     inky.mode = 1;
     inky.trapped = true;
+    inky.free = false; 
 
     Ghost clyde;
     clyde.x = 32;
     clyde.y = 15;
+    clyde.next_x = 32;
+    clyde.next_y = 15;
+    clyde.mode = 1;
+    clyde.trapped = true;
+    clyde.free = false;
    //-----------------------------------------------//
    start_time = time(NULL);
    while (running) {
@@ -239,32 +251,71 @@ int main(int argc, char * argv[]) {
     //Prevents an out of bound error for the program.
     if (next_direction_y >= 0 && next_direction_y < HEIGHT &&  next_direction_x >= 0 && next_direction_x < WIDTH) {
 		if ((stage[next_direction_y][next_direction_x] != WALL) && (stage[next_direction_y][next_direction_x] != WALL2)) { //This will only update pacman x and pacman y if its not a wall.
+            pacman_old_x = pacman_x;
+            pacman_old_y = pacman_y;
             pacman_y = next_direction_y;
             pacman_x = next_direction_x;
 		} else {
-           if (direction == KEY_UP) {
-              if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1] !=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
-                pacman_x-=1;
-                direction = KEY_LEFT;
-              } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
-                pacman_x+=1;
-                direction = KEY_RIGHT;
-              }
-           } else if (direction == KEY_DOWN) {
-              if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1]!=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
-                pacman_x-=1;
-                direction = KEY_LEFT;
-              } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
-                pacman_x+=1;
-                direction = KEY_RIGHT;
-              }
-           } else {
-                if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1]!=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
-                    pacman_x-=1;
-                    direction = KEY_LEFT;
-                } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
-                    pacman_x+=1;
-                    direction = KEY_RIGHT;
+            //This is is how the amount of valid paths are calculated, which is important because it determines
+            //whether pacman should keep moving left or right (such as in a tunnel), if pacman should calm to a halt (such as when he is at
+            //an 3 way intersection when he was moving up or down, or there is no more valid spots to the left or right).
+            //It uses a mix of old and new positioning to accomplish this.
+           int open_paths = 0;
+           if (stage[pacman_y - 1][pacman_x] != WALL && stage[pacman_y - 1][pacman_x] != WALL2) {
+               open_paths++;
+           }
+           if (stage[pacman_y + 1][pacman_x] != WALL && stage[pacman_y + 1][pacman_x] != WALL2) {
+               open_paths++;
+           }
+           if (stage[pacman_y][pacman_x - 1] != WALL && stage[pacman_y][pacman_x - 1] != WALL2) {
+               open_paths++;
+           }
+           if (stage[pacman_y][pacman_x + 1] != WALL && stage[pacman_y][pacman_x + 1] != WALL2) {
+               open_paths++;
+           }
+           //In a normal tunnel, there are only two possible directions, so just keep moving in previous x direction.
+           if (open_paths <= 2) {
+                //Handles the horizontal tunnels.
+                if (direction == KEY_UP  || direction == KEY_DOWN) {
+                    if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1] != WALL && stage[pacman_y][pacman_x - 1] != WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_x -= 1;
+                        direction = KEY_LEFT;
+                    } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1] != WALL && stage[pacman_y][pacman_x + 1] != WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_x += 1;
+                        direction = KEY_RIGHT;
+                    }
+                } else {
+                    //Handles the vertical tunnels.
+                    if (previous_direction_y == KEY_UP && (stage[pacman_y - 1][pacman_x] != WALL && stage[pacman_y - 1][pacman_x] != WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_y -= 1;
+                        direction = KEY_UP;
+                    } else if (previous_direction_y == KEY_DOWN && (stage[pacman_y + 1][pacman_x] != WALL && stage[pacman_y + 1][pacman_x] != WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_y += 1;
+                        direction = KEY_DOWN;
+                    }
+                }
+           } else if (open_paths == 3) { //Pacman should only move left or right if his previous direction was from the left or right, not up or down.
+                //If pacman's previous x position and y + 1 is a wall, then he was coming from the left or right. Otherwise, he was coming up
+                if (direction == KEY_UP  || direction == KEY_DOWN) {
+                    if (previous_direction_x == KEY_LEFT && (stage[pacman_old_y + 1][pacman_old_x] == WALL || stage[pacman_old_y + 1][pacman_old_x]==WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_x -= 1;
+                        direction = KEY_LEFT;
+                    } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_old_y + 1][pacman_old_x] == WALL || stage[pacman_old_y + 1][pacman_old_x]==WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_x += 1;
+                        direction = KEY_RIGHT;
+                    }
                 }
            }
         }
@@ -279,16 +330,16 @@ int main(int argc, char * argv[]) {
                 stage[pacman_y][pacman_x] = EATEN;
         }
 	} else {
-    //This is how pacman can move through the tunnel and teleport.
-	if (next_direction_y == 14) {
-		if (next_direction_x < 0) { 
-			pacman_x = WIDTH - 1; 
-			direction = KEY_LEFT;
-    } else if (next_direction_x >= WIDTH) { 
-        pacman_x = 0;
-        direction = KEY_RIGHT;
-    }
-    }
+        //This is how pacman can move through the tunnel and teleport.
+        if (next_direction_y == 14) {
+            if (next_direction_x < 0) { 
+                pacman_x = WIDTH - 1; 
+                direction = KEY_LEFT;
+        } else if (next_direction_x >= WIDTH) { 
+            pacman_x = 0;
+            direction = KEY_RIGHT;
+        }
+      }
     }
 	
 
@@ -386,18 +437,23 @@ int main(int argc, char * argv[]) {
     //During scatter, runs to the top left corner of the map
 
     //Determines when to exit spawn
-        bool pFree = false;
         if(pinky.trapped){ //Ensures pinky escapes before progressing through the game
-        if(time(NULL) - start_time == 15){
+        if(time(NULL) - start_time < 10){
             pinky.target_x = 30;
             pinky.target_y = 12;
-            pFree = true;
+        }
+        if(time(NULL) - start_time >= 10){
+            pinky.free = true;
         }
         if (pinky.x == 30 && pinky.y == 12) {
             pinky.trapped = false;
         }
     }
     else{
+        //Disables the ability to move through ghost house
+        if(!pinky.trapped){
+            pinky.free = false;
+        }
         //Time needed to pass to start chasing
         if(time(NULL) - start_time > 20){
             pinky.mode = 0;
@@ -411,7 +467,7 @@ int main(int argc, char * argv[]) {
         //Chase mode
         if(pinky.mode == 0){
             //Determine the direction pacman is moving and set target 4 spaces ahead
-            //Calculate the distance from pacman and pick position furthest from him
+            //Calculate the distance from pacman and pick position closest to him
             pinky.target_x = pacman_x + (4*dx);
             pinky.target_y = pacman_y + (4*dy);
         }
@@ -427,7 +483,7 @@ int main(int argc, char * argv[]) {
         }
     }
         int pathP[4] = {0, 0, 0, 0}; //Up Down Left Right (For Pinky)
-        if(stage[pinky.y - 1][pinky.x] != WALL && (stage[pinky.y - 1][pinky.x] != WALL2 || pFree)) pathP[0] = 1; //Up
+        if(stage[pinky.y - 1][pinky.x] != WALL && (stage[pinky.y - 1][pinky.x] != WALL2 || pinky.free)) pathP[0] = 1; //Up
         if(stage[pinky.y + 1][pinky.x] != WALL && stage[pinky.y + 1][pinky.x] != WALL2) pathP[1] = 1; //Down
         if(stage[pinky.y][pinky.x - 1] != WALL && stage[pinky.y][pinky.x - 1] != WALL2) pathP[2] = 1; //Left
         if(stage[pinky.y][pinky.x + 1] != WALL && stage[pinky.y][pinky.x + 1] != WALL2) pathP[3] = 1; //Right
@@ -494,26 +550,204 @@ int main(int argc, char * argv[]) {
 //Proceeds to double the length of the vector, with the ending position being his target.
 
 if(inky.trapped){
-    if( score >= 300){
-        inky.target_x = 58;
-        inky.target_y = 29;
-        inky.trapped = false;
+    if( score < 300){
+        inky.target_x = 30;
+        inky.target_y = 12;
     }
-}
+    if(score >= 300){
+        inky.free = true;
+    }
+    if (inky.x == 30 && inky.y == 12) {
+            inky.trapped = false;
+        }
+    }
 else{
-    
+        //Disables the ability to move through ghost house
+        if(!inky.trapped){
+            inky.free = false;
+        }
+
+        //Score of 700 or more needed to chasing
+        if(score >= 700){
+            inky.mode = 0;
+        }
+
+        //Determine the direction of pacman for chase mode
+        int dx_i = 0, dy_i = 0;
+        if (direction == KEY_UP)    dy_i = -1;
+        if (direction == KEY_DOWN)  dy_i = 1;
+        if (direction == KEY_LEFT)  dx_i = -1;
+        if (direction == KEY_RIGHT) dx_i = 1;
+
+        //Chase mode
+        if(inky.mode == 0){
+            //Determine the direction pacman is moving and set a temp variable to look to spaces ahead
+             int temp_x = pacman_x + (2*dx_i);
+             int temp_y = pacman_y + (2*dy_i);
+            //Subtract the distance between Blinky and double the position of temp point
+            inky.target_x = (2*temp_x) - blinky.x;
+            inky.target_y = (2*temp_y) - blinky.y;
+        }
+        //Scatter mode
+        else if(inky.mode == 1){
+            //(58, 28) for bottom-right corner
+            inky.target_x = 58;
+            inky.target_y = 28;
+        }
+        //Frightened mode
+        else if(inky.mode == 2){
+            //logic still needed
+        }
 }
-int pathI[4] = {0, 0, 0, 0}; //Up Down Left Right (For Inky)
-        if(stage[inky.y - 1][inky.x] != WALL && (stage[inky.y - 1][inky.x] != WALL2 || pFree)) pathI[0] = 1; //Up
+        int pathI[4] = {0, 0, 0, 0}; //Up Down Left Right (For Inky)
+        if(stage[inky.y - 1][inky.x] != WALL && (stage[inky.y - 1][inky.x] != WALL2 || inky.free)) pathI[0] = 1; //Up
         if(stage[inky.y + 1][inky.x] != WALL && stage[inky.y + 1][inky.x] != WALL2) pathI[1] = 1; //Down
         if(stage[inky.y][inky.x - 1] != WALL && stage[inky.y][inky.x - 1] != WALL2) pathI[2] = 1; //Left
         if(stage[inky.y][inky.x + 1] != WALL && stage[inky.y][inky.x + 1] != WALL2) pathI[3] = 1; //Right
 
         double best_disI = 100000.0; //Best distance for inky
         int dirI; //Used for inky's direction
-    
 
-//clyde:    
+        for(int i = 0; i<4; i++){ //Check each path and determine which one is best
+            //Prevents U-turns
+            if((i == 0 && inky.dir == 1) || (i == 1 && inky.dir == 0) || (i == 2 && inky.dir == 3) || (i == 3 && inky.dir == 2)){
+                continue;
+            }
+        
+            int test_x = inky.x; //Temp variable for potential x positions
+            int test_y = inky.y; //Temp variable for potential y postions
+
+            // Predict where ghost would be in this direction
+            if(i == 0) test_y--;      // Up
+            else if(i == 1) test_y++; // Down
+            else if(i == 2) test_x--; // Left
+            else if(i == 3) test_x++; // Right
+
+            if(pathI[i] == 1){
+                double dis = pow(inky.target_x - test_x,2) + pow(inky.target_y - test_y, 2);
+                if(dis<best_disI){
+                    dirI = i; //Store the best direction
+                    best_disI = dis;
+                }
+                else{ //If path not valid, move onto next
+                    continue;
+                }
+            }
+        }
+    inky.dir = dirI; //Set the direction
+
+    switch(inky.dir){ //Move along the direction
+            case 0:
+            inky.y--;
+            break;
+            case 1:
+            inky.y++;
+            break;
+            case 2:
+            inky.x--;
+            break;
+            case 3:
+            inky.x++;
+            break;
+        }
+    //Usage of the teleporter
+    if (inky.y == 14) {
+		if (inky.x - 1 < 0) { 
+			inky.x = WIDTH - 1;
+			inky.dir = 2;
+        }else if (inky.x + 1 >= WIDTH) { 
+            inky.x = 0;
+            inky.dir = 3;
+        }
+    }
+//clyde:
+//When in scatter mode, targets the bottom left of the map
+//When in chase mode, if 8 positions or further from pacman, acts like blinky
+//If within 8 positions of pacman, retreats to his corner
+
+if(clyde.trapped){
+    if( score < 600){
+        clyde.target_x = 30;
+        clyde.target_y = 12;
+    }
+    if(score >= 600){
+        clyde.free = true;
+    }
+    if (inky.x == 30 && inky.y == 12) {
+            clyde.trapped = false;
+        }
+    }
+else{
+    //Disables the ability to move through ghost house
+        if(!clyde.trapped){
+            clyde.free = false;
+        }
+
+        //Score of 1000 or more needed to chasing
+        if(score >= 1000){
+            clyde.mode = 0;
+        }
+        
+        //Determine the direction of pacman for chase mode
+        int dx_c = 0, dy_c = 0;
+        if (direction == KEY_UP)    dy_c = -1;
+        if (direction == KEY_DOWN)  dy_c = 1;
+        if (direction == KEY_LEFT)  dx_c = -1;
+        if (direction == KEY_RIGHT) dx_c = 1;
+
+        //Chase mode
+        if(clyde.mode == 0){
+            clyde.target_x = pacman + (8*dx_c);
+            clyde.target_y = pacman + (8*dy_c);
+        }
+        //Scatter mode
+        else if(clyde.mode == 1){
+            //(1, 28) for bottom-left corner
+            inky.target_x = 1;
+            inky.target_y = 28;
+        }
+        //Frightened mode
+        else if(inky.mode == 2){
+            //logic still needed
+        }
+}
+        int pathC[4] = {0, 0, 0, 0}; //Up Down Left Right (For Inky)
+        if(stage[clyde.y - 1][clyde.x] != WALL && (stage[clyde.y - 1][clyde.x] != WALL2 || clyde.free)) pathC[0] = 1; //Up
+        if(stage[clyde.y + 1][clyde.x] != WALL && stage[clyde.y + 1][clyde.x] != WALL2) pathC[1] = 1; //Down
+        if(stage[clyde.y][clyde.x - 1] != WALL && stage[clyde.y][clyde.x - 1] != WALL2) pathC[2] = 1; //Left
+        if(stage[clyde.y][clyde.x + 1] != WALL && stage[clyde.y][clyde.x + 1] != WALL2) pathC[3] = 1; //Right
+
+        double best_disC = 10000.0;
+        int dirC;
+        for(int i = 0; i<4; i++){ //Check each path and determine which one is best
+            //Prevents U-turns
+            if((i == 0 && clyde.dir == 1) || (i == 1 && clyde.dir == 0) || (i == 2 && clyde.dir == 3) || (i == 3 && clyde.dir == 2)){
+                continue;
+            }
+        
+            int test_x = clyde.x; //Temp variable for potential x positions
+            int test_y = clyde.y; //Temp variable for potential y postions
+
+            // Predict where ghost would be in this direction
+            if(i == 0) test_y--;      // Up
+            else if(i == 1) test_y++; // Down
+            else if(i == 2) test_x--; // Left
+            else if(i == 3) test_x++; // Right
+
+            if(pathI[i] == 1){
+                double dis = pow(clyde.target_x - test_x,2) + pow(clyde.target_y - test_y, 2);
+                if(dis<best_disI){
+                    dirC = i; //Store the best direction
+                    best_disC = dis;
+                }
+                else{ //If path not valid, move onto next
+                    continue;
+                }
+            }
+        }
+        clyde.dir = dirC; //Set the direction
+        
+
     mvwaddch(game_win, blinky.y, blinky.x, 'G' | COLOR_PAIR(4));
     mvwaddch(game_win, pinky.y, pinky.x, 'G' | COLOR_PAIR(6));
     mvwaddch(game_win, inky.y, inky.x, 'G' | COLOR_PAIR(3));
