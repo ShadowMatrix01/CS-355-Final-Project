@@ -105,8 +105,6 @@ int main(int argc, char * argv[]) {
    //WIDTH = 60, HEIGHT = 30
    WINDOW *game_win;
    int pacman_move;
-   int previous_direction_x = KEY_RIGHT;
-   int previous_direction_y = KEY_DOWN;
    int direction = KEY_RIGHT; //https://pacmancode.com/start-positions
    bool running = true;
    initscr();
@@ -196,11 +194,6 @@ int main(int argc, char * argv[]) {
 			}
 		}
 	}
-    if (direction == KEY_UP || direction == KEY_DOWN) {
-        previous_direction_y = direction;
-    } else if (direction == KEY_LEFT || direction == KEY_RIGHT) {
-        previous_direction_x = direction;
-    }
 	pacman_move = ERR; //Without this, the program would get confused and pacman would get stuck on walls.
 	int ch;
 	while ((ch = wgetch(game_win)) != ERR) { //Provided there is no error, then the movement will be captured.
@@ -232,45 +225,20 @@ int main(int argc, char * argv[]) {
 		if ((stage[next_direction_y][next_direction_x] != WALL) && (stage[next_direction_y][next_direction_x] != WALL2)) { //This will only update pacman x and pacman y if its not a wall.
             pacman_y = next_direction_y;
             pacman_x = next_direction_x;
-		} else {
-           if (direction == KEY_UP) {
-              if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1] !=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
-                pacman_x-=1;
-                direction = KEY_LEFT;
-              } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
-                pacman_x+=1;
-                direction = KEY_RIGHT;
-              }
-           } else if (direction == KEY_DOWN) {
-              if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1]!=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
-                pacman_x-=1;
-                direction = KEY_LEFT;
-              } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
-                pacman_x+=1;
-                direction = KEY_RIGHT;
-              }
-           } else {
-                if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1]!=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
-                    pacman_x-=1;
-                    direction = KEY_LEFT;
-                } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
-                    pacman_x+=1;
-                    direction = KEY_RIGHT;
-                }
-           }
-        }
-        if (stage[pacman_y][pacman_x] == DOT || stage[pacman_y][pacman_x] == CHERRY || stage[pacman_y][pacman_x] == SPECIAL) {
-                if (stage[pacman_y][pacman_x] == DOT) {
-                    score += 10;
-                } else if (stage[pacman_y][pacman_x] == CHERRY) {
-                    score += 100;
-                } else {
-                    ghost_time();
-                }
-                stage[pacman_y][pacman_x] = EATEN;
-        }
-	} else {
-    //This is how pacman can move through the tunnel and teleport.
+		}
+		if (stage[next_direction_y][next_direction_x] == DOT || stage[next_direction_y][next_direction_x] == CHERRY || stage[next_direction_y][next_direction_x] == SPECIAL) {
+			if (stage[next_direction_y][next_direction_x] == DOT) {
+				score+=10;
+			} else if (stage[next_direction_y][next_direction_x] == CHERRY) {
+				score+=100;
+			} else {
+				ghost_time();
+			}
+			stage[next_direction_y][next_direction_x] = EATEN;
+		}
+		
+	}
+	//This is how pacman can move through the tunnel and teleport.
 	if (next_direction_y == 14) {
 		if (next_direction_x < 0) { 
 			pacman_x = WIDTH - 1;
@@ -281,8 +249,7 @@ int main(int argc, char * argv[]) {
         pacman_y = 14;
         direction = KEY_RIGHT;
     }
-    }
-    }
+	}
 	
 
     //Ghost Section///////////////////////////
