@@ -12,6 +12,12 @@
 #define DOT '.' //Needed to populate the dots.
 #define SPECIAL '@'
 #define CHERRY 'C'
+#define STRAWBERRY 'S'
+#define ORANGE 'O'
+#define APPLE 'A'
+#define MELON 'M'
+//Galaxian and Bell ommited since G is used for ghosts, and is bell ommited for higher stakes.
+#define KEY 'K'
 #define EATEN ' '
 /*  Width and height from: https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/keys.html
  Pac-Man
@@ -28,7 +34,7 @@ the ability to eat the ghosts for 10 seconds.
 • Game Play: The game ends with a win if Pac-Man eats all the Pac-Dots. The game ends in
 lost if Pac-Man is eaten by a ghost
 
-https://pacman.fandom.com/wiki/Fruits
+https://pacman.fandom.com/wiki/fruits
 The fruits feature different mechanics in certain games, but across all of them, they can appear twice in every round.
 In the original Pac-Man, the fruits are located below the Regeneration Chamber and won't move at all. 
 The fruit appears after 70 dots are eaten and again after 170 dots are eaten unless the first fruit is still there. They will disappear if they are not eaten after 9-10 seconds.*/
@@ -41,6 +47,7 @@ The fruit appears after 70 dots are eaten and again after 170 dots are eaten unl
  /* Lives System:
   * In the original 1980 Pac-Man arcade game, the player starts with 3 lives (one active Pac-Man and two in reserve). 
   * The game allows for configuration changes, but the default setting is 3, with an extra life awarded at 10,000 points.*/
+char fruit = CHERRY;
 int pacman_x = 1;
 int pacman_y = 1;
 int pacman_old_x = 1;
@@ -49,9 +56,10 @@ int next_direction_x=1;
 int next_direction_y=1;
 int score = 0;
 int lives = 3;
-int cherry_end_time = 0;
+int fruit_end_time = 0;
 int start_time = 0;
 int seconds = 10; //For cherry timer.
+int pellets_collected = 0; //For the reset logic.
 bool going_once = true;
 bool start_timer_cherry = false;
 
@@ -107,14 +115,100 @@ int main(int argc, char * argv[]) {
     "#..........      ...........    ...........       .........#", 
     "############################################################"  
 };	
+char stage[HEIGHT][WIDTH + 1];
 
+//Defines how the ghosts behave
+typedef struct ghosts{
+    int x, y; // Where the ghost is located
+    int next_x, next_y; //Next location of the ghost
+    int target_x, target_y; //Goal position
+    int speed;
+    int dir; //Up(0), Down(1), Left(2), Right(3)
+    int mode; //Determines if they are chasing, scattering, or frightened
+    bool ghostTime;
+    bool trapped; //Determine if ghost is in spawn
+} Ghost;
+Ghost blinky, pinky, inky, clyde; //Moved here to allow reset logic to occur unlike before.
+void ghost_time() {
+	//Will need timer, aswell as cool effect and other things.
+    
+}
+void reset() {
+    clear();
+    pacman_x = 1;
+    pacman_y = 1;
+    pacman_old_x = 1;
+    pacman_old_y = 1;
+    next_direction_x=1;
+    next_direction_y=1;
+    score = 0;
+    fruit_end_time = 0;
+    start_time = 0;
+    seconds = 10; //For cherry timer.
+    going_once = true;
+    start_timer_fruit = false;
+    pacman_move = ERR;
+    previous_direction_x = KEY_RIGHT;
+    previous_direction_y = KEY_DOWN;
+    direction = KEY_RIGHT; //https://pacmancode.com/start-positions
+    for (int i = 0; i<HEIGHT; i++) {
+        for (int j=0; j<WIDTH + 1; j++) {
+            stage[i][j] = original_stage[i][j];
+        }
+    }
+    //Declare ghosts
+   
+    blinky.x = 30; 
+    blinky.y = 12;
+    blinky.next_x = 30;
+    blinky.next_y = 12;
+    blinky.mode = 1; //Set to scatter
+
+    pinky.x = 30;
+    pinky.y = 15;
+    pinky.next_x = 30;
+    pinky.next_y = 15;
+    pinky.mode = 1;
+    pinky.trapped = true;
+    
+
+    inky.x = 28;
+    inky.y = 15;
+    inky.next_x = 28;
+    inky.next_y = 15;
+    inky.mode = 1;
+    inky.trapped = true;
+
+    clyde.x = 32;
+    clyde.y = 15;
+    //-----------------------------------------------//
+    pellets_collected = 0; //For the reset logic.
+    switch (levels_beaten) {
+     case 0: fruit = CHERRY;
+     break;
+     case 1: fruit = STRAWBERRY;
+     break;
+     case 2: fruit = ORANGE;
+     break;
+     case 3: fruit = APPLE;
+     break;
+     case 4: fruit = MELON;
+     break;
+     default:
+     fruit = KEY;
+   }
+    start_time = time(NULL);
+}
+int main(int argc, char * argv[]) { 
+    for (int i = 0; i<HEIGHT; i++) {
+        for (int j=0; j<WIDTH + 1; j++) {
+            stage[i][j] = original_stage[i][j];
+        }
+    }
+//Workaround idea, to ensure that pacman only stops at 3 intersection corns when going up or down,
+//I will use a previous x and previous and if that is invalid, then keep moving in his respective direction.
    //WIDTH = 60, HEIGHT = 30
    WINDOW *game_win;
-   int pacman_move;
-   int previous_direction_x = KEY_RIGHT;
-   int previous_direction_y = KEY_DOWN;
-   int direction = KEY_RIGHT; //https://pacmancode.com/start-positions
-   bool running = true;
    initscr();
    start_color(); //Needed to initialize color pairs. 
    //Needed for codespaces to not highlight text or show grey as the background
@@ -125,6 +219,7 @@ int main(int argc, char * argv[]) {
    init_pair(4, COLOR_RED, -1);    //Key 4, Red Character, Black Background.
    init_pair(5, COLOR_GREEN, -1); //Key 5, Green Character, Black Background.
    init_pair(6, COLOR_MAGENTA, -1); // Key 6, "Pinkish" Character, Black Background.
+   //Only 8 colors, so fruit is all red.
 
    //NOTE: While in a normal pacman game, the dots would be yellow. I dislike how much the yellow blends
    //with pacman because you cannot change the opacity of a color in ncurses. Or if is, it adds unnecessary bloat.
@@ -139,7 +234,7 @@ int main(int argc, char * argv[]) {
   
 
    
-   game_win = newwin(HEIGHT, WIDTH, 10, 90); //Window placed at X:90, and Y: 10.
+   game_win = newwin(HEIGHT, WIDTH, 10, 45); //Window placed at X:90, and Y: 10.
   
    curs_set(0); //Cursor hidden from terminal, because that breaks game flow.
    wrefresh(game_win); //Game window refreshed.
@@ -147,15 +242,13 @@ int main(int argc, char * argv[]) {
    nodelay(game_win, TRUE);//Had to add this, because input is normally blocking.
    
    
-    //Declare ghosts
-    Ghost blinky;
     blinky.x = 30; 
     blinky.y = 12;
     blinky.next_x = 30;
     blinky.next_y = 12;
     blinky.mode = 1; //Set to scatter
 
-    Ghost pinky;
+    
     pinky.x = 30;
     pinky.y = 15;
     pinky.next_x = 30;
@@ -164,7 +257,7 @@ int main(int argc, char * argv[]) {
     pinky.trapped = true;
     pinky.free = false; 
     
-    Ghost inky;
+    
     inky.x = 28;
     inky.y = 15;
     inky.next_x = 28;
@@ -173,7 +266,7 @@ int main(int argc, char * argv[]) {
     inky.trapped = true;
     inky.free = false; 
 
-    Ghost clyde;
+    
     clyde.x = 32;
     clyde.y = 15;
     clyde.next_x = 32;
@@ -184,23 +277,32 @@ int main(int argc, char * argv[]) {
    //-----------------------------------------------//
    start_time = time(NULL);
    while (running) {
-    
-	mvprintw(8, 90, "SCORE: %d                                           LIVES: %d", score, lives); //https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/printw.html
+    if (pellets_collected == 150) {
+        levels_beaten++;
+        reset();
+        flushinp(); //https://pubs.opengroup.org/onlinepubs/7908799/xcurses/flushinp.html, Removes all input
+    }
+    //Score is white
+    mvprintw(8, 45, "SCORE: %d", score);
+    attron(COLOR_PAIR(1));
+    //Lives are yellow.
+    mvprintw(8, 97, "LIVES: %d", lives);
+    attroff(COLOR_PAIR(1)); //https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/printw.html
 	refresh();
     werase(game_win); //Game window is cleared of previous screen.
     mvwaddch(game_win, pacman_y, pacman_x, ' '); //Needed to clear trailing output, similar to pygame.
     //Timer is also like pygame, I couldn't use sleep since sleep blocks the CPU.
-    if (start_timer_cherry) {
-		if (time(NULL) >= cherry_end_time) {
+    if (start_timer_fruit) {
+		if (time(NULL) >= fruit_end_time) {
 			stage[17][29] = EATEN;
-			start_timer_cherry = false;
+			start_timer_fruit = false;
 		}
 	}
     if (score > 70 && going_once) {
-		stage[17][29] = CHERRY;
-		start_timer_cherry = true;
+		stage[17][29] = fruit;
+		start_timer_fruit = true;
 		going_once = false;
-		cherry_end_time = time(NULL) + 10; //Takes the current time and adds 10 seconds, like in the original game.
+		fruit_end_time = time(NULL) + 10; //Takes the current time and adds 10 seconds, like in the original game.
 	}
     for (int y = 0; y < HEIGHT; y++) { //This loop draws the stage as it evolves. Starting with the y axis, or the columns.
 		for (int x = 0; x < WIDTH; x++) { //Same as above, but for x axis
@@ -319,11 +421,24 @@ int main(int argc, char * argv[]) {
                 }
            }
         }
-        if (stage[pacman_y][pacman_x] == DOT || stage[pacman_y][pacman_x] == CHERRY || stage[pacman_y][pacman_x] == SPECIAL) {
+        if (stage[pacman_y][pacman_x] == DOT || stage[pacman_y][pacman_x] == fruit || stage[pacman_y][pacman_x] == SPECIAL) {
                 if (stage[pacman_y][pacman_x] == DOT) {
                     score += 10;
-                } else if (stage[pacman_y][pacman_x] == CHERRY) {
-                    score += 100;
+                    pellets_collected++;
+                } else if (stage[pacman_y][pacman_x] == fruit) {
+                    if (stage[pacman_y][pacman_x] == CHERRY) {
+                        score += 100;
+                    } else if (stage[pacman_y][pacman_x] == STRAWBERRY) {
+                        score += 300;
+                    } else if (stage[pacman_y][pacman_x] == ORANGE) {
+                        score += 500;
+                    } else if (stage[pacman_y][pacman_x] == APPLE) {
+                        score += 700;
+                    } else if (stage[pacman_y][pacman_x] == MELON) {
+                        score += 900;
+                    } else {
+                        score +=1200;
+                    }
                 } else {
                     ghost_time();
                 }
