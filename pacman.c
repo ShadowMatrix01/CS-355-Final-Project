@@ -43,6 +43,8 @@ The fruit appears after 70 dots are eaten and again after 170 dots are eaten unl
   * The game allows for configuration changes, but the default setting is 3, with an extra life awarded at 10,000 points.*/
 int pacman_x = 1;
 int pacman_y = 1;
+int pacman_old_x = 1;
+int pacman_old_y = 1;
 int next_direction_x=1;
 int next_direction_y=1;
 int score = 0;
@@ -70,13 +72,15 @@ void ghost_time() {
     
 }
 int main(int argc, char * argv[]) { 
+//Workaround idea, to ensure that pacman only stops at 3 intersection corns when going up or down,
+//I will use a previous x and previous and if that is invalid, then keep moving in his respective direction.
  char stage[HEIGHT][WIDTH + 1] = { 
     "############################################################", 
     "#    ........              #####              .......      #", 
-    "# ########### ############ ##### ############ ############.#",
-    "# ########### ############ ##### ############ ############ #",
-    "# ########### ############ ##### ############ ############.#",
-    "#                                                          #",
+    "# ############ ########### ##### ############ ############.#",
+    "# ############ ########### ##### ############ ############ #",
+    "# ############ ########### ##### ############ ############.#",
+    "#                                                          #", 
     "#.############.#.##########################.#.############.#",
     "#.############ #.##########################.# ############.#",
     "#.......       #.##########################.#        ......#",
@@ -239,32 +243,71 @@ int main(int argc, char * argv[]) {
     //Prevents an out of bound error for the program.
     if (next_direction_y >= 0 && next_direction_y < HEIGHT &&  next_direction_x >= 0 && next_direction_x < WIDTH) {
 		if ((stage[next_direction_y][next_direction_x] != WALL) && (stage[next_direction_y][next_direction_x] != WALL2)) { //This will only update pacman x and pacman y if its not a wall.
+            pacman_old_x = pacman_x;
+            pacman_old_y = pacman_y;
             pacman_y = next_direction_y;
             pacman_x = next_direction_x;
 		} else {
-           if (direction == KEY_UP) {
-              if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1] !=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
-                pacman_x-=1;
-                direction = KEY_LEFT;
-              } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
-                pacman_x+=1;
-                direction = KEY_RIGHT;
-              }
-           } else if (direction == KEY_DOWN) {
-              if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1]!=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
-                pacman_x-=1;
-                direction = KEY_LEFT;
-              } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
-                pacman_x+=1;
-                direction = KEY_RIGHT;
-              }
-           } else {
-                if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1]!=WALL && stage[pacman_y][pacman_x - 1]!=WALL2)) {
-                    pacman_x-=1;
-                    direction = KEY_LEFT;
-                } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1]!=WALL && stage[pacman_y][pacman_x + 1]!=WALL2)) {
-                    pacman_x+=1;
-                    direction = KEY_RIGHT;
+            //This is is how the amount of valid paths are calculated, which is important because it determines
+            //whether pacman should keep moving left or right (such as in a tunnel), if pacman should calm to a halt (such as when he is at
+            //an 3 way intersection when he was moving up or down, or there is no more valid spots to the left or right).
+            //It uses a mix of old and new positioning to accomplish this.
+           int open_paths = 0;
+           if (stage[pacman_y - 1][pacman_x] != WALL && stage[pacman_y - 1][pacman_x] != WALL2) {
+               open_paths++;
+           }
+           if (stage[pacman_y + 1][pacman_x] != WALL && stage[pacman_y + 1][pacman_x] != WALL2) {
+               open_paths++;
+           }
+           if (stage[pacman_y][pacman_x - 1] != WALL && stage[pacman_y][pacman_x - 1] != WALL2) {
+               open_paths++;
+           }
+           if (stage[pacman_y][pacman_x + 1] != WALL && stage[pacman_y][pacman_x + 1] != WALL2) {
+               open_paths++;
+           }
+           //In a normal tunnel, there are only two possible directions, so just keep moving in previous x direction.
+           if (open_paths <= 2) {
+                //Handles the horizontal tunnels.
+                if (direction == KEY_UP  || direction == KEY_DOWN) {
+                    if (previous_direction_x == KEY_LEFT && (stage[pacman_y][pacman_x - 1] != WALL && stage[pacman_y][pacman_x - 1] != WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_x -= 1;
+                        direction = KEY_LEFT;
+                    } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_y][pacman_x + 1] != WALL && stage[pacman_y][pacman_x + 1] != WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_x += 1;
+                        direction = KEY_RIGHT;
+                    }
+                } else {
+                    //Handles the vertical tunnels.
+                    if (previous_direction_y == KEY_UP && (stage[pacman_y - 1][pacman_x] != WALL && stage[pacman_y - 1][pacman_x] != WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_y -= 1;
+                        direction = KEY_UP;
+                    } else if (previous_direction_y == KEY_DOWN && (stage[pacman_y + 1][pacman_x] != WALL && stage[pacman_y + 1][pacman_x] != WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_y += 1;
+                        direction = KEY_DOWN;
+                    }
+                }
+           } else if (open_paths == 3) { //Pacman should only move left or right if his previous direction was from the left or right, not up or down.
+                //If pacman's previous x position and y + 1 is a wall, then he was coming from the left or right. Otherwise, he was coming up
+                if (direction == KEY_UP  || direction == KEY_DOWN) {
+                    if (previous_direction_x == KEY_LEFT && (stage[pacman_old_y + 1][pacman_old_x] == WALL || stage[pacman_old_y + 1][pacman_old_x]==WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_x -= 1;
+                        direction = KEY_LEFT;
+                    } else if (previous_direction_x == KEY_RIGHT && (stage[pacman_old_y + 1][pacman_old_x] == WALL || stage[pacman_old_y + 1][pacman_old_x]==WALL2)) {
+                        pacman_old_x = pacman_x;
+                        pacman_old_y = pacman_y;
+                        pacman_x += 1;
+                        direction = KEY_RIGHT;
+                    }
                 }
            }
         }
@@ -279,16 +322,16 @@ int main(int argc, char * argv[]) {
                 stage[pacman_y][pacman_x] = EATEN;
         }
 	} else {
-    //This is how pacman can move through the tunnel and teleport.
-	if (next_direction_y == 14) {
-		if (next_direction_x < 0) { 
-			pacman_x = WIDTH - 1; 
-			direction = KEY_LEFT;
-    } else if (next_direction_x >= WIDTH) { 
-        pacman_x = 0;
-        direction = KEY_RIGHT;
-    }
-    }
+        //This is how pacman can move through the tunnel and teleport.
+        if (next_direction_y == 14) {
+            if (next_direction_x < 0) { 
+                pacman_x = WIDTH - 1; 
+                direction = KEY_LEFT;
+        } else if (next_direction_x >= WIDTH) { 
+            pacman_x = 0;
+            direction = KEY_RIGHT;
+        }
+      }
     }
 	
 
