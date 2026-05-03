@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <time.h> //Time to handle start screen. https://stackoverflow.com/questions/17167949/how-can-i-use-a-timer-in-c 
 #include <stdlib.h> //Needed for exit and random.
+#include <math.h> //Needed for distance
 //Splash screen might be added later.
 #define WIDTH 60 //Because it looked incorrect
 #define HEIGHT 30 
@@ -55,9 +56,10 @@ bool start_timer_cherry = false;
 //Defines how the ghosts behave
 typedef struct ghosts{
     int x, y; // Where the ghost is located
-    int prior_x, prior_y; //Next location of the ghost
+    int next_x, next_y; //Next location of the ghost
     int target_x, target_y; //Goal position
     int speed;
+    int dir; //Up(0), Down(1), Left(2), Right(3)
     int mode; // Determines if they are chasing, scattering, or frightened
     bool ghostTime;
 } Ghost;
@@ -67,35 +69,35 @@ void ghost_time() {
     
 }
 int main(int argc, char * argv[]) { 
-   char stage[HEIGHT][WIDTH + 1] = { 
+     char stage[HEIGHT][WIDTH + 1] = { 
     "############################################################", 
-    "#    .......                ###                ......      #", 
-    "#  #########   ###########  ###  ############  ########## .#",
-    "#  #########   ###########  ###  ############  ##########  #",
-    "#  #########   ###########  ###  ############  ########## .#",
+    "#    ........              #####              .......      #", 
+    "# ########### ############ ##### ############ ############.#",
+    "# ########### ############ ##### ############ ############ #",
+    "# ########### ############ ##### ############ ############.#",
     "#                                                          #",
-    "#. #########  ... ######################## ... ########## .#",
-    "#. #########   #. ######################## .#  ########## .#",
-    "#.......       #. ######################## .#        ......#",
-    "#############  #............####............#  #############",
-    "           ##  ###########  ####  ###########  ##           ",
-    "           ##  ###########  ####  ###########  ##           ",
-    "           ##  #                            #  ##           ",
-    "#############  #  ##########----##########  #  #############",
+    "#.############.#.##########################.#.############.#",
+    "#.############ #.##########################.# ############.#",
+    "#.......       #.##########################.#        ......#",
+    "############## #............####............# ##############",
+    "           ### ############ #### ############ ###           ",
+    "           ### ############ #### ############ ###           ",
+    "           ### ##                          ## ###           ",
+    "############## ## ##########----########## ## ##############",
     "                  #                      #                  ",
-    "#############  #  #                      #  #  #############",
-    "           ##  #  ########################  #  ##           ",
-    "           ##  #                            #  ##           ",
-    "           ##  #  ########################  #  ##           ",
-    "#############  #  ########################  #  #############",
+    "############## ## #                      # ## ##############",
+    "           ### ## ######################## ## ###           ",
+    "           ### ##                          ## ###           ",
+    "           ### ## ######################## ## ###           ",
+    "############## ## ######################## ## ##############",
     "#.........      .           ####           .     ..........#",
-    "#. #######  ##############  ####  ##############  ####### .#",
-    "#. #######  ##############  ####  ##############  ####### .#",
-    "# .....###                                        ###..... #",
-    "##### .###  #####  ######################  #####  ###. #####",
-    "##### .###  #####  ######################  #####  ###. #####",
+    "#.######### ############### #### ############### #########.#",
+    "#.######### ############### #### ############### #########.#",
+    "# .....####                                      ####..... #",
+    "######.#### ##### ######################## ##### ####.######",
+    "######.#### ##### ######################## ##### ####.######",
     "#           #####           ####           #####           #",
-    "#. ####################### .####. ####################### .#",
+    "#.#########################.####.#########################.#",
     "#..........      ...........    ...........       .........#", 
     "############################################################"  
 };	
@@ -137,13 +139,13 @@ int main(int argc, char * argv[]) {
    wrefresh(game_win); //Game window refreshed.
    keypad(game_win, TRUE);
    nodelay(game_win, TRUE);//Had to add this, because input is normally blocking.
-   
+
     //Declare ghosts
     Ghost blinky;
     blinky.x = 30; 
     blinky.y = 12;
-    blinky.prior_x = -1;
-    blinky.prior_y = -1;
+    blinky.next_x = 30;
+    blinky.next_y = 12;
     blinky.mode = 1; //Set to scatter
 
     Ghost pinky;
@@ -291,9 +293,9 @@ int main(int argc, char * argv[]) {
     //In scatter mode, he targets the top right corner
     //In chase mode, he tracks the current position of pacman
     
-    int move_x = 0;
-    int move_y = 0;
-    bool move_taken = false;
+        if(time(NULL) - start_time > 10){
+            blinky.mode = 0;
+        }
 
         //Chase mode
         if(blinky.mode == 0){
@@ -306,56 +308,68 @@ int main(int argc, char * argv[]) {
             blinky.target_x = 58;
             blinky.target_y = 1;
         }
-        //Move blinky
-            if(blinky.y < blinky.target_y) move_y = 1;
-            else if(blinky.y > blinky.target_y) move_y = -1;
-            
 
-            if(blinky.x < blinky.target_x) move_x = 1;
-            else if(blinky.x > blinky.target_x) move_x = -1;
-            
-        //Prevents getting stuck at teleport
-            if((blinky.x + move_x < 0 || blinky.x + move_x >= WIDTH) && blinky.y == 14){
-                blinky.prior_x = blinky.x;
-                blinky.prior_y = blinky.y;
-                blinky.x += move_x;
+    int paths[4] = {0, 0, 0, 0}; //Up Down Left Right
+    if(stage[blinky.y - 1][blinky.x] != WALL) paths[0] = 1; //Up
+    if(stage[blinky.y + 1][blinky.x] != WALL) paths[1] = 1; //Down
+    if(stage[blinky.y][blinky.x - 1] != WALL) paths[2] = 1; //Left
+    if(stage[blinky.y][blinky.x + 1] != WALL) paths[3] = 1; //Right
+
+    double best_dis = 100000.0;
+    int dir;
+    for(int i = 0; i<4; i++){ //Check each path and determine which one is best
+        
+        if((i == 0 && blinky.dir == 1) || (i == 1 && blinky.dir == 0) || (i == 2 && blinky.dir == 3) || (i == 3 && blinky.dir == 2)){
+            continue;
+        }
+        
+        int test_x = blinky.x; //Temp variable for potential x positions
+        int test_y = blinky.y; //Temp variable for potential y postions
+
+        // Predict where ghost would be in this direction
+        if(i == 0) test_y--;      // Up
+        else if(i == 1) test_y++; // Down
+        else if(i == 2) test_x--; // Left
+        else if(i == 3) test_x++; // Right
+
+        if(paths[i] == 1){
+            double dis = pow(blinky.target_x - test_x,2) + pow(blinky.target_y - test_y, 2);
+            if(dis<best_dis){
+                dir = i; //Store the best direction
+                best_dis = dis;
+            }
+            else{ //If path not valid, move onto next
                 continue;
             }
-
-        if (blinky.y + move_y >= 0 && blinky.y + move_y < HEIGHT &&  blinky.x + move_x >= 0 && blinky.x + move_x < WIDTH) { //Movement is within bounds
-            if ((stage[blinky.y][blinky.x + move_x] != WALL) && (stage[blinky.y][blinky.x + move_x] != WALL2) && (blinky.x + move_x != blinky.prior_x)) { //Prevents moving into a wall
-                //Updates position
-                blinky.prior_x = blinky.x;
-                blinky.prior_y = blinky.y;
-                blinky.x += move_x;
-                move_taken = true;
-            }
-            else if ((stage[blinky.y + move_y][blinky.x] != WALL) && (stage[blinky.y + move_y][blinky.x] != WALL2) && (blinky.y + move_y != blinky.prior_y)){
-                blinky.prior_x = blinky.x;
-                blinky.prior_y = blinky.y;
-                blinky.y += move_y;
-                move_taken = true;
-            }
-            //Gaurantees that if the optimal path can't be taken, a move is still made
-            else if ((stage[blinky.y][blinky.x - move_x] != WALL) && (stage[blinky.y][blinky.x - move_x] != WALL2) && (blinky.x - move_x != blinky.prior_x) && !move_taken){
-                blinky.prior_x = blinky.x;
-                blinky.x -= move_x;
-                move_taken = true;
-            }
-            else if ((stage[blinky.y - move_y][blinky.x] != WALL) && (stage[blinky.y - move_y][blinky.x] != WALL2) && (blinky.y - move_y != blinky.prior_y) && !move_taken){
-                blinky.prior_y = blinky.y;
-                blinky.y -= move_y;
-                move_taken = true;
-            }
+        }
     }
-    //Teleport logic
+    blinky.dir = dir; //Set the direction
+    
+    //Usage of the teleporter
     if (blinky.y == 14) {
-		if (blinky.x < 0) { 
+		if (blinky.x - 1 < 0) { 
 			blinky.x = WIDTH - 1;
-    } else if (blinky.x >= WIDTH) { 
+			blinky.dir = 2;
+    } else if (blinky.x + 1 >= WIDTH) { 
         blinky.x = 0;
+        blinky.dir = 3;
     }
-	}
+}    
+        switch(blinky.dir){ //Move along the direction
+            case 0:
+            blinky.y--;
+            break;
+            case 1:
+            blinky.y++;
+            break;
+            case 2:
+            blinky.x--;
+            break;
+            case 3:
+            blinky.x++;
+            break;
+        }
+    
     
     mvwaddch(game_win, blinky.y, blinky.x, 'G' | COLOR_PAIR(4));
     mvwaddch(game_win, pinky.y, pinky.x, 'G' | COLOR_PAIR(6));
@@ -371,4 +385,4 @@ int main(int argc, char * argv[]) {
    return 0;
 }
 
-//Note, to compile gcc -o pacman pacman.c -lncurses
+//Note, to compile gcc -o pacman pacman.c -lncurses -lm
