@@ -62,7 +62,9 @@ int seconds = 10; //For cherry timer.
 int pellets_collected = 0; //For the reset logic.
 bool going_once = true;
 bool start_timer_fruit = false;
-int pacman_move;int previous_direction_x = KEY_RIGHT;
+int pacman_move;
+int previous_direction_x = KEY_RIGHT;
+int queued_direction = ERR;
 int previous_direction_y = KEY_DOWN;
 int direction = KEY_RIGHT; //https://pacmancode.com/start-positions
 int levels_beaten = 0;
@@ -139,21 +141,18 @@ void reset() {
     previous_direction_x = KEY_RIGHT;
     previous_direction_y = KEY_DOWN;
     direction = KEY_RIGHT; //https://pacmancode.com/start-positions
+    queued_direction = ERR;
     for (int i = 0; i<HEIGHT; i++) {
         for (int j=0; j<WIDTH + 1; j++) {
             stage[i][j] = original_stage[i][j];
         }
-    }
-       
-    //Declare ghosts
-    Ghost blinky;
+    }  
     blinky.x = 30; 
     blinky.y = 12;
     blinky.next_x = 30;
     blinky.next_y = 12;
     blinky.mode = 1; //Set to scatter
 
-    Ghost pinky;
     pinky.x = 30;
     pinky.y = 15;
     pinky.next_x = 30;
@@ -161,8 +160,7 @@ void reset() {
     pinky.mode = 1;
     pinky.trapped = true;
     pinky.free = false; 
-    
-    Ghost inky;
+
     inky.x = 28;
     inky.y = 15;
     inky.next_x = 28;
@@ -171,7 +169,6 @@ void reset() {
     inky.trapped = true;
     inky.free = false; 
 
-    Ghost clyde;
     clyde.x = 32;
     clyde.y = 15;
     clyde.next_x = 32;
@@ -179,7 +176,6 @@ void reset() {
     clyde.mode = 1;
     clyde.trapped = true;
     clyde.free = false;
-   //-----------------------------------------------//
     pellets_collected = 0; //For the reset logic.
     switch (levels_beaten) {
      case 0: fruit = CHERRY;
@@ -335,6 +331,8 @@ int main(int argc, char * argv[]) {
     switch(pacman_move) {
         case KEY_UP: 
         case KEY_DOWN:
+            queued_direction = pacman_move;
+            break;
         case KEY_LEFT:
         case KEY_RIGHT:
              direction = pacman_move;
@@ -343,12 +341,25 @@ int main(int argc, char * argv[]) {
              running = false;
              break;
     }
+
     switch(direction) { //Switched because of collision conflicts, the program needs to predict what happens next rather
 		//than just moving and then calculating conflict.
         case KEY_UP:    next_direction_y--; break;
         case KEY_DOWN:  next_direction_y++; break;
         case KEY_LEFT:  next_direction_x--; break;
         case KEY_RIGHT: next_direction_x++; break;
+    }
+    if (queued_direction == KEY_UP || queued_direction == KEY_DOWN) { 
+        int test_x = next_direction_x; 
+        int test_y = next_direction_y; 
+        if (queued_direction == KEY_UP) { 
+            test_y--; 
+        } else if (queued_direction == KEY_DOWN) { 
+            test_y++; 
+        } if (stage[test_y][test_x] != WALL && stage[test_y][test_x] != WALL2) { 
+            direction = queued_direction; 
+            queued_direction = ERR; 
+        } 
     }
     //Prevents an out of bound error for the program.
     if (next_direction_y >= 0 && next_direction_y < HEIGHT &&  next_direction_x >= 0 && next_direction_x < WIDTH) {
