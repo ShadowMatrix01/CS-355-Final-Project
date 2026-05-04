@@ -1,3 +1,9 @@
+/*
+Authors: Aiden Ocasio and Jhan Gomez
+Instructor: Professor Fernando
+Course: Computer Science 355
+Purpose: To demonstrate how a simple and fun pacman game in C can be done utilizing the ncurses library,
+the math libary, simple and advanced C code, and just general knowledge of game design.*/
 #include <stdio.h>
 #include <ncurses.h> //Ncurses library ported in
 #include <stdbool.h>
@@ -5,6 +11,7 @@
 #include <stdlib.h> //Needed for exit and random.
 #include <math.h> //Needed for distance
 //Splash screen might be added later.
+#include <unistd.h> //For sleep.
 #define WIDTH 60 //Because it looked incorrect
 #define HEIGHT 30 
 #define WALL '#' //Needed for collision purposes.
@@ -19,34 +26,10 @@
 //Galaxian and Bell ommited since G is used for ghosts, and is bell ommited for higher stakes.
 #define KEY 'K'
 #define EATEN ' '
-/*  Width and height from: https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/keys.html
- Pac-Man
-• Objective: navigate a maze and eat all Pac-Dots.
-• Game Design:
-– The maze must be 30 → 30 characters in size.
-– Pac-Man begins in the top left corner of the maze.
-– Four Ghosts must appear at random locations and move in random directions all the
-time.
-– Ghosts have the ability to eat Pac-Man if a ghost encounters Pac-Man.
-– Four Power Pellets appear randomly in the maze. Pac-Man can consume them to gain
-the ability to eat the ghosts for 10 seconds.
-– The maze contains 150 Pac-Dots.
-• Game Play: The game ends with a win if Pac-Man eats all the Pac-Dots. The game ends in
-lost if Pac-Man is eaten by a ghost
-
-https://pacman.fandom.com/wiki/fruits
-The fruits feature different mechanics in certain games, but across all of them, they can appear twice in every round.
-In the original Pac-Man, the fruits are located below the Regeneration Chamber and won't move at all. 
-The fruit appears after 70 dots are eaten and again after 170 dots are eaten unless the first fruit is still there. They will disappear if they are not eaten after 9-10 seconds.*/
-
-/*SCORING SYSTEM:
- * Pac-Man scores points by consuming dots (10 pts), power pellets (50 pts), fruits (100–5,000 pts), and frightened ghosts (200–1,600 pts). 
- * The maximum score, achieved by eating everything on all 256 levels without losing a life, is 3,333,360 points. 
- * Points increase by chaining ghost kills, and a bonus life is awarded at 10,000 points.*/
- 
- /* Lives System:
-  * In the original 1980 Pac-Man arcade game, the player starts with 3 lives (one active Pac-Man and two in reserve). 
-  * The game allows for configuration changes, but the default setting is 3, with an extra life awarded at 10,000 points.*/
+/* 
+    Width and height from: https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/keys.html
+    Pacman info on fruits: https://pacman.fandom.com/wiki/fruits
+*/
 char fruit = CHERRY;
 int pacman_x = 1;
 int pacman_y = 1;
@@ -55,6 +38,7 @@ int pacman_old_y = 1;
 int next_direction_x=1;
 int next_direction_y=1;
 int score = 0;
+int highest_score = 0;
 int lives = 3;
 int fruit_end_time = 0;
 int start_time = 0;
@@ -71,6 +55,8 @@ int levels_beaten = 0;
 bool running = true;
 int frightened_timer;
 bool frightened;
+WINDOW *game_win;
+//Maze for the game, declared as a 2D Matrix - Jhan
 char original_stage[HEIGHT][WIDTH + 1] =  { 
     "############################################################", 
     "#@   ........              #####              .......     @#", 
@@ -105,7 +91,7 @@ char original_stage[HEIGHT][WIDTH + 1] =  {
 };	
 char stage[HEIGHT][WIDTH + 1];
 
-//Defines how the ghosts behave
+//Defines how the ghosts behave -Aiden
 typedef struct ghosts{
     int x, y; // Where the ghost is located
     int next_x, next_y; //Next location of the ghost
@@ -118,20 +104,75 @@ typedef struct ghosts{
     bool free; //Allows ghost to bypass WALL2
 } Ghost;
 Ghost blinky, pinky, inky, clyde; //Moved here to allow reset logic to occur unlike before.
+//Handles when ghosts are in special stage - Aiden
 void ghost_time() {
 	//Will need timer, aswell as cool effect and other things.
     frightened_timer = 60;
     frightened = true;
 }
-void reset() {
+//Starting and restart from game over screen - Jhan
+void coin_inserted(int countdown) {
+     for (int i = countdown; i >= 1; i--) {
+        clear();
+        mvprintw(20, 70, "Coin inserted! Game starting in: %d seconds ", i);
+        /* THIS ASCII ART IS PROVIDED FREE COURTESY OF https://www.asciiart.eu/video-games/pacman */
+        mvprintw(21, 60, "             _ __   __ _  ___ _ __ ___   __ _ _ __   ");
+        mvprintw(22, 60, "            | '_ \\ / _` |/ __| '_ ` _ \\ / _` | '_ \\  ");
+        mvprintw(23, 60, "            | |_) | (_| | (__| | | | | | (_| | | | | ");
+        mvprintw(24, 60, "            | .__/ \\__,_|\\___|_| |_| |_|\\__,_|_| |_| ");
+        mvprintw(25, 60, "            |_|                                      ");
+        mvprintw(26, 60, "            Please wait. Your game will start shortly...");
+        mvprintw(27, 45, "Demonstration by Aiden Ocasio and Jhan Gomez. This game is not endorsed by Bandai Namco Entertainment.");
+        refresh(); 
+        sleep(1);
+    }
     clear();
+}
+//General reset and restart logic, including reset of score, points, and positions. - Jhan
+void reset(int gameMode) {
+    clear();
+    nodelay(stdscr, FALSE);
+    if (gameMode == 2) {
+        for (int i = 0; i<HEIGHT; i++) {
+            for (int j=0; j<WIDTH + 1; j++) {
+                stage[i][j] = original_stage[i][j];
+            }
+        }  
+        score = 0;
+    }
+    if (gameMode == 1) {
+        for (int i = 0; i<HEIGHT; i++) {
+            for (int j=0; j<WIDTH + 1; j++) {
+                stage[i][j] = original_stage[i][j];
+            }
+        }  
+        int get = ERR;  
+        mvprintw(20, 90, "Game Over.");
+        mvprintw(21, 75, "Your score for this round was: %d points.", score);
+        mvprintw(22, 75, "Your highest score was: %d points.", highest_score);
+        mvprintw(23, 75, "You were able to complete: %d stages.", levels_beaten);
+        mvprintw(24, 75, "Press enter to insert a coin...");
+        refresh();
+        score = 0;
+        highest_score = 0;
+        lives = 3;
+        levels_beaten = 0;
+        get = getch();
+        if (get == '\n' || get == '\r') {
+            clear();
+            coin_inserted(5);
+        }
+    } else {
+        score = score;
+    }
+    clear();
+    //Resetting logic. -Jhan
     pacman_x = 1;
     pacman_y = 1;
     pacman_old_x = 1;
     pacman_old_y = 1;
     next_direction_x=1;
     next_direction_y=1;
-    score = 0;
     fruit_end_time = 0;
     start_time = 0;
     seconds = 10; //For cherry timer.
@@ -142,11 +183,9 @@ void reset() {
     previous_direction_y = KEY_DOWN;
     direction = KEY_RIGHT; //https://pacmancode.com/start-positions
     queued_direction = ERR;
-    for (int i = 0; i<HEIGHT; i++) {
-        for (int j=0; j<WIDTH + 1; j++) {
-            stage[i][j] = original_stage[i][j];
-        }
-    }  
+      
+
+   //Initializing ghost locations and modes. -Aiden
     blinky.x = 30; 
     blinky.y = 12;
     blinky.next_x = 30;
@@ -177,6 +216,7 @@ void reset() {
     clyde.trapped = true;
     clyde.free = false;
     pellets_collected = 0; //For the reset logic.
+    //Switch determines what fruit to use. -Jhan
     switch (levels_beaten) {
      case 0: fruit = CHERRY;
      break;
@@ -191,18 +231,19 @@ void reset() {
      default:
      fruit = KEY;
    }
+   //Blocking movement is disabled for main game. -Jhan
+    nodelay(stdscr, TRUE);
     start_time = time(NULL);
+    running = true;
 }
 int main(int argc, char * argv[]) { 
+    //Sets the stage using a nested for loop. -Jhan
     for (int i = 0; i<HEIGHT; i++) {
         for (int j=0; j<WIDTH + 1; j++) {
             stage[i][j] = original_stage[i][j];
         }
     }
-//Workaround idea, to ensure that pacman only stops at 3 intersection corns when going up or down,
-//I will use a previous x and previous and if that is invalid, then keep moving in his respective direction.
-   //WIDTH = 60, HEIGHT = 30
-   WINDOW *game_win;
+   //WIDTH = 60, HEIGHT = 30, Because Terminal displays characters bigger in terms of height vs width. -Jhan
    initscr();
    start_color(); //Needed to initialize color pairs. 
    //Needed for codespaces to not highlight text or show grey as the background
@@ -216,7 +257,7 @@ int main(int argc, char * argv[]) {
    //Only 8 colors, so fruit is all red.
 
    //NOTE: While in a normal pacman game, the dots would be yellow. I dislike how much the yellow blends
-   //with pacman because you cannot change the opacity of a color in ncurses. Or if is, it adds unnecessary bloat.
+   //with pacman because you cannot change the opacity of a color in ncurses. Or if is, it adds unnecessary bloat. -Jhan
    if(has_colors() == FALSE){	
 	    endwin(); //Handles if color is not supported on the terminal.
 		printf("Your terminal does not support color\n");
@@ -236,15 +277,13 @@ int main(int argc, char * argv[]) {
    nodelay(game_win, TRUE);//Had to add this, because input is normally blocking.
    
    
-    //Declare ghosts
-    Ghost blinky;
+    //Declare ghosts -Aiden
     blinky.x = 30; 
     blinky.y = 12;
     blinky.next_x = 30;
     blinky.next_y = 12;
     blinky.mode = 1; //Set to scatter
 
-    Ghost pinky;
     pinky.x = 30;
     pinky.y = 15;
     pinky.next_x = 30;
@@ -253,7 +292,6 @@ int main(int argc, char * argv[]) {
     pinky.trapped = true;
     pinky.free = false; 
     
-    Ghost inky;
     inky.x = 28;
     inky.y = 15;
     inky.next_x = 28;
@@ -262,7 +300,6 @@ int main(int argc, char * argv[]) {
     inky.trapped = true;
     inky.free = false; 
 
-    Ghost clyde;
     clyde.x = 32;
     clyde.y = 15;
     clyde.next_x = 32;
@@ -271,36 +308,39 @@ int main(int argc, char * argv[]) {
     clyde.trapped = true;
     clyde.free = false;
    //-----------------------------------------------//
+   coin_inserted(10); //To give the user some time before the game begins. -Jhan
    start_time = time(NULL);
    while (running) {
-    if (pellets_collected == 150) {
+    if (pellets_collected == 150) { //Mission complete logic -Jhan
         levels_beaten++;
-        reset();
+        reset(2);
         flushinp(); //https://pubs.opengroup.org/onlinepubs/7908799/xcurses/flushinp.html, Removes all input
     }
     //Score is white
-    mvprintw(8, 45, "SCORE: %d", score);
+    mvprintw(8, 45, "SCORE: %d ", score);
+    mvprintw(7, 68, "HIGH SCORE: %d ", highest_score);
     attron(COLOR_PAIR(1));
     //Lives are yellow.
-    mvprintw(8, 97, "LIVES: %d", lives);
+    mvprintw(8, 97, "LIVES: %d ", lives);
     attroff(COLOR_PAIR(1)); //https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/printw.html
 	refresh();
     werase(game_win); //Game window is cleared of previous screen.
     mvwaddch(game_win, pacman_y, pacman_x, ' '); //Needed to clear trailing output, similar to pygame.
-    //Timer is also like pygame, I couldn't use sleep since sleep blocks the CPU.
+    //Timer is also like pygame, I couldn't use sleep since sleep blocks the CPU -Jhan.
     if (start_timer_fruit) {
 		if (time(NULL) >= fruit_end_time) {
 			stage[17][29] = EATEN;
 			start_timer_fruit = false;
 		}
 	}
+    //Will show the fruit only once for every 70 points. -Jhan
     if (score > 70 && going_once) {
 		stage[17][29] = fruit;
 		start_timer_fruit = true;
 		going_once = false;
 		fruit_end_time = time(NULL) + 10; //Takes the current time and adds 10 seconds, like in the original game.
 	}
-    for (int y = 0; y < HEIGHT; y++) { //This loop draws the stage as it evolves. Starting with the y axis, or the columns.
+    for (int y = 0; y < HEIGHT; y++) { //This loop draws the stage as it evolves. Starting with the y axis, or the columns. -Jhan
 		for (int x = 0; x < WIDTH; x++) { //Same as above, but for x axis
 			if (stage[y][x] == WALL) {
 			    mvwaddch(game_win, y, x, stage[y][x] | COLOR_PAIR(2)); //Stage drawn.
@@ -315,6 +355,7 @@ int main(int argc, char * argv[]) {
 			}
 		}
 	}
+    //Needed for intersection logic. -Jhan
     if (direction == KEY_UP || direction == KEY_DOWN) {
         previous_direction_y = direction;
     } else if (direction == KEY_LEFT || direction == KEY_RIGHT) {
@@ -328,6 +369,7 @@ int main(int argc, char * argv[]) {
 
     next_direction_x = pacman_x;
     next_direction_y = pacman_y;
+    //Movement along the y axis is queued to give that authentic pacman feel. -Jhan
     switch(pacman_move) {
         case KEY_UP: 
           if (stage[pacman_y - 1][pacman_x]!=WALL && stage[pacman_y - 1][pacman_x]!=WALL2) {
@@ -355,12 +397,13 @@ int main(int argc, char * argv[]) {
     }
 
     switch(direction) { //Switched because of collision conflicts, the program needs to predict what happens next rather
-		//than just moving and then calculating conflict.
+		//than just moving and then calculating conflict. -Jhan
         case KEY_UP:    next_direction_y--; break;
         case KEY_DOWN:  next_direction_y++; break;
         case KEY_LEFT:  next_direction_x--; break;
         case KEY_RIGHT: next_direction_x++; break;
     }
+    //Pacman movement logic, determines when to execute queued direction. -Jhan
     if (queued_direction == KEY_UP || queued_direction == KEY_DOWN) { 
         int test_x = next_direction_x; 
         int test_y = next_direction_y; 
@@ -373,7 +416,7 @@ int main(int argc, char * argv[]) {
             queued_direction = ERR; 
         } 
     }
-    //Prevents an out of bound error for the program.
+    //Prevents an out of bound error for the program. -Jhan
     if (next_direction_y >= 0 && next_direction_y < HEIGHT &&  next_direction_x >= 0 && next_direction_x < WIDTH) {
 		if ((stage[next_direction_y][next_direction_x] != WALL) && (stage[next_direction_y][next_direction_x] != WALL2)) { //This will only update pacman x and pacman y if its not a wall.
             pacman_old_x = pacman_x;
@@ -384,7 +427,7 @@ int main(int argc, char * argv[]) {
             //This is is how the amount of valid paths are calculated, which is important because it determines
             //whether pacman should keep moving left or right (such as in a tunnel), if pacman should calm to a halt (such as when he is at
             //an 3 way intersection when he was moving up or down, or there is no more valid spots to the left or right).
-            //It uses a mix of old and new positioning to accomplish this.
+            //It uses a mix of old and new positioning to accomplish this. -Jhan
            int open_paths = 0;
            if (stage[pacman_y - 1][pacman_x] != WALL && stage[pacman_y - 1][pacman_x] != WALL2) {
                open_paths++;
@@ -432,7 +475,7 @@ int main(int argc, char * argv[]) {
                     }
                 }
            } else if (open_paths == 3) { //Pacman should only move left or right if his previous direction was from the left or right, not up or down.
-                //If pacman's previous x position and y + 1 is a wall, then he was coming from the left or right. Otherwise, he was coming up
+                //If pacman's previous x position and y + 1 is a wall, then he was coming from the left or right. Otherwise, he was coming up. -Jhan
                 if (direction == KEY_UP  || direction == KEY_DOWN) {
                     if (previous_direction_x == KEY_LEFT && (stage[pacman_old_y + 1][pacman_old_x] == WALL || stage[pacman_old_y + 1][pacman_old_x]==WALL2)) {
                         pacman_old_x = pacman_x;
@@ -448,31 +491,8 @@ int main(int argc, char * argv[]) {
                 }
            }
         }
-        if (stage[pacman_y][pacman_x] == DOT || stage[pacman_y][pacman_x] == fruit || stage[pacman_y][pacman_x] == SPECIAL) {
-                if (stage[pacman_y][pacman_x] == DOT) {
-                    score += 10;
-                    pellets_collected++;
-                } else if (stage[pacman_y][pacman_x] == fruit) {
-                    if (stage[pacman_y][pacman_x] == CHERRY) {
-                        score += 100;
-                    } else if (stage[pacman_y][pacman_x] == STRAWBERRY) {
-                        score += 300;
-                    } else if (stage[pacman_y][pacman_x] == ORANGE) {
-                        score += 500;
-                    } else if (stage[pacman_y][pacman_x] == APPLE) {
-                        score += 700;
-                    } else if (stage[pacman_y][pacman_x] == MELON) {
-                        score += 900;
-                    } else {
-                        score +=1200;
-                    }
-                } else {
-                    ghost_time();
-                }
-                stage[pacman_y][pacman_x] = EATEN;
-        }
 	} else {
-        //This is how pacman can move through the tunnel and teleport.
+        //This is how pacman can move through the tunnel and teleport. -Jhan
         if (next_direction_y == 14) {
             if (next_direction_x < 0) { 
                 pacman_x = WIDTH - 1; 
@@ -483,13 +503,44 @@ int main(int argc, char * argv[]) {
         }
       }
     }
+    //Handles points for fruits. -Jhan
+    if (stage[pacman_y][pacman_x] == DOT || stage[pacman_y][pacman_x] == fruit || stage[pacman_y][pacman_x] == SPECIAL) {
+                if (stage[pacman_y][pacman_x] == DOT) {
+                    score += 10;
+                    highest_score += 10;
+                    pellets_collected++;
+                } else if (stage[pacman_y][pacman_x] == fruit) {
+                    if (stage[pacman_y][pacman_x] == CHERRY) {
+                        score += 100;
+                        highest_score += 100;
+                    } else if (stage[pacman_y][pacman_x] == STRAWBERRY) {
+                        score += 300;
+                        highest_score += 300;
+                    } else if (stage[pacman_y][pacman_x] == ORANGE) {
+                        score += 500;
+                        highest_score += 500;
+                    } else if (stage[pacman_y][pacman_x] == APPLE) {
+                        score += 700;
+                        highest_score += 700;
+                    } else if (stage[pacman_y][pacman_x] == MELON) {
+                        score += 900;
+                        highest_score += 900;
+                    } else {
+                        score +=1200;
+                        highest_score += 1200;
+                    }
+                } else {
+                    ghost_time();
+                }
+                stage[pacman_y][pacman_x] = EATEN;
+    }
 	 //Ghost Section///////////////////////////
 
     //blinky:
     //Most aggrressive ghost
     //Gets progressively faster the less dots there are
     //In scatter mode, he targets the top right corner
-    //In chase mode, he tracks the current position of pacman
+    //In chase mode, he tracks the current position of pacman -Aiden
 
         //Determines when to start chasing pacman
         if(time(NULL) - start_time > 10){
@@ -926,26 +977,28 @@ else{
             } 
         } else{
              lives--;
-             if(lives <= 0){
+             if(lives < 0){
                  running = false;
+                 reset(1);
              } else{
-                reset();
+                reset(0);
                 flushinp();
              }
         }
     }
     else{
+        //Drawing character on screen logic. Jhan and Aiden.
         mvwaddch(game_win, pacman_y, pacman_x, 'P' | COLOR_PAIR(1)); //https://docs.oracle.com/cd/E86824_01/html/E54767/mvwaddch-3curses.html
         mvwaddch(game_win, blinky.y, blinky.x, 'G' | COLOR_PAIR(4));
         mvwaddch(game_win, pinky.y, pinky.x, 'G' | COLOR_PAIR(6));
         mvwaddch(game_win, inky.y, inky.x, 'G' | COLOR_PAIR(3));
         mvwaddch(game_win, clyde.y, clyde.x, 'G' | COLOR_PAIR(1));
     }
-    //Check if power pellet effects are still going on
+    //Check if power pellet effects are still going on -Aiden.
     if(frightened_timer > 0) frightened_timer--;
     if(frightened_timer == 0) frightened = false;
 
-    wrefresh(game_win); //Game window refreshed.
+    wrefresh(game_win); //Game window refreshed. -Jhan
     napms(100); 
    }
 
