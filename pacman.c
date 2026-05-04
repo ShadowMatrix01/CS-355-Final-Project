@@ -330,8 +330,20 @@ int main(int argc, char * argv[]) {
     next_direction_y = pacman_y;
     switch(pacman_move) {
         case KEY_UP: 
+          if (stage[pacman_y - 1][pacman_x]!=WALL && stage[pacman_y - 1][pacman_x]!=WALL2) {
+                direction = pacman_move;
+                queued_direction = ERR;
+            } else {
+                queued_direction = pacman_move;
+            }
+            break;
         case KEY_DOWN:
-            queued_direction = pacman_move;
+            if (stage[pacman_y + 1][pacman_x]!=WALL && stage[pacman_y + 1][pacman_x]!=WALL2) {
+                direction = pacman_move;
+                queued_direction = ERR;
+            } else {
+                queued_direction = pacman_move;
+            }
             break;
         case KEY_LEFT:
         case KEY_RIGHT:
@@ -912,41 +924,14 @@ else{
                 mvwaddch(game_win, blinky.y, blinky.x, ':' | COLOR_PAIR(7));
                 blinky.mode = 0; 
             } 
-        }
-        else{
-        lives--;
-        if(lives <= 0){
-            running = false;
-        }
-        else{
-            //Clear old position and reset to spawn
-            mvwaddch(game_win, pacman_y, pacman_x, ' ');
-            pacman_x = 1;
-            pacman_y = 1;
-            direction = KEY_RIGHT;
-
-            //Reset ghosts to original locations
-            blinky.x = 30; blinky.y = 12;
-            pinky.x = 30; pinky.y = 15;
-            inky.x = 28; inky.y = 15;
-            clyde.x = 32; clyde.y = 15;
-
-            //Redeclare them as trapped
-            pinky.trapped = true;
-            inky.trapped = true;
-            clyde.trapped = true;
-
-            //Reset them to scatter
-            blinky.mode = 1;
-            pinky.mode = 1;
-            inky.mode = 1;
-            clyde.mode = 1;
-
-            //Reset timer & dot count
-            start_time = time(NULL);
-            pellets_collected = 0;
-            napms(1000);
-        }
+        } else{
+             lives--;
+             if(lives <= 0){
+                 running = false;
+             } else{
+                reset();
+                flushinp();
+             }
         }
     }
     else{
