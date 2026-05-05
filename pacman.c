@@ -318,7 +318,7 @@ int main(int argc, char * argv[]) {
     clyde.free = false;
     clyde.time = time(NULL);
    //-----------------------------------------------//
-   coin_inserted(2); //To give the user some time before the game begins. -Jhan
+   coin_inserted(10); //To give the user some time before the game begins. -Jhan
    start_time = time(NULL);
    while (running) {
     if (pellets_collected == 150) { //Mission complete logic -Jhan
