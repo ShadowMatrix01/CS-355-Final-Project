@@ -41,7 +41,7 @@ int score = 0;
 int highest_score = 0;
 int lives = 3;
 int fruit_end_time = 0;
-int start_time = 0;
+time_t start_time = 0;
 int seconds = 10; //For cherry timer.
 int pellets_collected = 0; //For the reset logic.
 bool going_once = true;
@@ -94,12 +94,12 @@ char stage[HEIGHT][WIDTH + 1];
 //Defines how the ghosts behave -Aiden
 typedef struct ghosts{
     int x, y; // Where the ghost is located
-    int next_x, next_y; //Next location of the ghost
+    int prev_x, prev_y; //Previous location of the ghost
     int target_x, target_y; //Goal position
     int speed;
     int dir; //Up(0), Down(1), Left(2), Right(3)
-    int mode; //Determines if they are chasing, scattering, or frightened
-    bool ghostTime;
+    int mode; //Determines if they are chasing, scattering, frightened, or eaten
+    time_t time;
     bool trapped; //Determine if ghost is in spawn
     bool free; //Allows ghost to bypass WALL2
 } Ghost;
@@ -188,33 +188,37 @@ void reset(int gameMode) {
    //Initializing ghost locations and modes. -Aiden
     blinky.x = 30; 
     blinky.y = 12;
-    blinky.next_x = 30;
-    blinky.next_y = 12;
+    blinky.prev_x = 30;
+    blinky.prev_y = 12;
     blinky.mode = 1; //Set to scatter
+    blinky.time = time(NULL);
 
     pinky.x = 30;
     pinky.y = 15;
-    pinky.next_x = 30;
-    pinky.next_y = 15;
+    pinky.prev_x = 30;
+    pinky.prev_y = 15;
     pinky.mode = 1;
     pinky.trapped = true;
     pinky.free = false; 
+    pinky.time = time(NULL);
 
     inky.x = 28;
     inky.y = 15;
-    inky.next_x = 28;
-    inky.next_y = 15;
+    inky.prev_x = 28;
+    inky.prev_y = 15;
     inky.mode = 1;
     inky.trapped = true;
-    inky.free = false; 
+    inky.free = false;
+    inky.time = time(NULL); 
 
     clyde.x = 32;
     clyde.y = 15;
-    clyde.next_x = 32;
-    clyde.next_y = 15;
+    clyde.prev_x = 32;
+    clyde.prev_y = 15;
     clyde.mode = 1;
     clyde.trapped = true;
     clyde.free = false;
+    clyde.time = time(NULL);
     pellets_collected = 0; //For the reset logic.
     //Switch determines what fruit to use. -Jhan
     switch (levels_beaten) {
@@ -236,7 +240,8 @@ void reset(int gameMode) {
     start_time = time(NULL);
     running = true;
 }
-int main(int argc, char * argv[]) { 
+int main(int argc, char * argv[]) {
+    srand(time(NULL)); //Needed so ghosts move randomly every frame
     //Sets the stage using a nested for loop. -Jhan
     for (int i = 0; i<HEIGHT; i++) {
         for (int j=0; j<WIDTH + 1; j++) {
@@ -254,6 +259,7 @@ int main(int argc, char * argv[]) {
    init_pair(4, COLOR_RED, -1);    //Key 4, Red Character, Black Background.
    init_pair(5, COLOR_GREEN, -1); //Key 5, Green Character, Black Background.
    init_pair(6, COLOR_MAGENTA, -1); // Key 6, "Pinkish" Character, Black Background.
+   init_pair(7, COLOR_WHITE, -1); //Key 7, White Character, Black Background.
    //Only 8 colors, so fruit is all red.
 
    //NOTE: While in a normal pacman game, the dots would be yellow. I dislike how much the yellow blends
@@ -277,38 +283,42 @@ int main(int argc, char * argv[]) {
    nodelay(game_win, TRUE);//Had to add this, because input is normally blocking.
    
    
-    //Declare ghosts -Aiden
+    //Initializing ghost locations and modes. -Aiden
     blinky.x = 30; 
     blinky.y = 12;
-    blinky.next_x = 30;
-    blinky.next_y = 12;
+    blinky.prev_x = 30;
+    blinky.prev_y = 12;
     blinky.mode = 1; //Set to scatter
+    blinky.time = time(NULL);
 
     pinky.x = 30;
     pinky.y = 15;
-    pinky.next_x = 30;
-    pinky.next_y = 15;
+    pinky.prev_x = 30;
+    pinky.prev_y = 15;
     pinky.mode = 1;
     pinky.trapped = true;
     pinky.free = false; 
-    
+    pinky.time = time(NULL);
+
     inky.x = 28;
     inky.y = 15;
-    inky.next_x = 28;
-    inky.next_y = 15;
+    inky.prev_x = 28;
+    inky.prev_y = 15;
     inky.mode = 1;
     inky.trapped = true;
-    inky.free = false; 
+    inky.free = false;
+    inky.time = time(NULL); 
 
     clyde.x = 32;
     clyde.y = 15;
-    clyde.next_x = 32;
-    clyde.next_y = 15;
+    clyde.prev_x = 32;
+    clyde.prev_y = 15;
     clyde.mode = 1;
     clyde.trapped = true;
     clyde.free = false;
+    clyde.time = time(NULL);
    //-----------------------------------------------//
-   coin_inserted(10); //To give the user some time before the game begins. -Jhan
+   coin_inserted(2); //To give the user some time before the game begins. -Jhan
    start_time = time(NULL);
    while (running) {
     if (pellets_collected == 150) { //Mission complete logic -Jhan
@@ -541,35 +551,70 @@ int main(int argc, char * argv[]) {
     //Gets progressively faster the less dots there are
     //In scatter mode, he targets the top right corner
     //In chase mode, he tracks the current position of pacman -Aiden
-
-        //Determines when to start chasing pacman
-        if(time(NULL) - start_time > 10){
-            blinky.mode = 0;
+        
+    //Eaten (Return to house)
+    if(blinky.mode == 3){
+        blinky.free = true;
+        blinky.target_x = 30;
+        blinky.target_y = 15;
         }
-
+    //Frightened mode
+    else if(blinky.mode == 2){
+        if(abs(blinky.x - blinky.target_x) < 1 && abs(blinky.y - blinky.target_y) < 1){
+            blinky.target_x = rand() % WIDTH;
+            blinky.target_y = rand() % HEIGHT;
+        }
+    }
+    else{
+        //Determines when to start chasing pacman
+        if (blinky.mode < 2) {
+            if (time(NULL) - start_time > 10) {
+                blinky.mode = 0; // Chase
+            } else {
+                blinky.mode = 1; // Scatter
+            }
+        }
         //Chase mode
         if(blinky.mode == 0){
             blinky.target_x = pacman_x;
             blinky.target_y = pacman_y;
         }
         //Scatter mode
-        else if((time(NULL) - start_time <= 10)|| blinky.mode == 1){
+        if((time(NULL) - start_time <= 10)|| blinky.mode == 1){
             //(58, 1) for top-right corner
             blinky.target_x = 58;
             blinky.target_y = 1;
         }
-        //Frightened mode
-        else if(blinky.mode == 2){
-            //logic still needed
+    }
+    
+        //Check if in the house
+        if (blinky.mode == 3 && blinky.x == 30 && blinky.y == 15) {
+            blinky.trapped = true;
         }
+        //How to escape
+        if(blinky.trapped){
+            blinky.target_x = 30;
+            blinky.target_y = 12;
+
+            if ( blinky.y <= 12) {
+                blinky.trapped = false;
+                blinky.free = false;
+                blinky.mode = 0;
+            }
+        }
+        
+
+    blinky.prev_x = blinky.x;
+    blinky.prev_y = blinky.y;
     int pathB[4] = {0, 0, 0, 0}; //Up Down Left Right (For Blinky)
-    if(stage[blinky.y - 1][blinky.x] != WALL && stage[blinky.y - 1][blinky.x] != WALL2) pathB[0] = 1; //Up
-    if(stage[blinky.y + 1][blinky.x] != WALL && stage[blinky.y + 1][blinky.x] != WALL2) pathB[1] = 1; //Down
+    
+    if(stage[blinky.y - 1][blinky.x] != WALL && (stage[blinky.y - 1][blinky.x] != WALL2 || blinky.free)) pathB[0] = 1; //Up
+    if(stage[blinky.y + 1][blinky.x] != WALL && (stage[blinky.y + 1][blinky.x] != WALL2 || blinky.free)) pathB[1] = 1; //Down
     if(stage[blinky.y][blinky.x - 1] != WALL && stage[blinky.y][blinky.x - 1] != WALL2) pathB[2] = 1; //Left
     if(stage[blinky.y][blinky.x + 1] != WALL && stage[blinky.y][blinky.x + 1] != WALL2) pathB[3] = 1; //Right
 
     double best_dis = 100000.0;
-    int dir;
+    int dir = blinky.dir;
     for(int i = 0; i<4; i++){ //Check each path and determine which one is best
         //Prevents U-turns
         if((i == 0 && blinky.dir == 1) || (i == 1 && blinky.dir == 0) || (i == 2 && blinky.dir == 3) || (i == 3 && blinky.dir == 2)){
@@ -626,61 +671,80 @@ int main(int argc, char * argv[]) {
     //pinky:
     //During the chase mode tracks pacman's position 4 spaces ahead of him
     //During scatter, runs to the top left corner of the map
-
-    //Determines when to exit spawn
-        if(pinky.trapped){ //Ensures pinky escapes before progressing through the game
-        if(time(NULL) - start_time < 5){
-            pinky.target_x = 30;
-            pinky.target_y = 12;
-        }
-        if(time(NULL) - start_time >= 5){
+    
+        //Eaten (Return to house)
+        if(pinky.mode == 3){
             pinky.free = true;
-        }
-        if (pinky.x == 30 && pinky.y == 12) {
-            pinky.trapped = false;
-        }
-    }
-    else{
-        //Disables the ability to move through ghost house
-        if(!pinky.trapped){
-            pinky.free = false;
-        }
-        //Time needed to pass to start chasing
-        if(time(NULL) - start_time > 10){
-            pinky.mode = 0;
-        }
-        //Determine the direction of pacman for chase mode
-        int dx = 0, dy = 0;
-        if (direction == KEY_UP)    dy = -1;
-        if (direction == KEY_DOWN)  dy = 1;
-        if (direction == KEY_LEFT)  dx = -1;
-        if (direction == KEY_RIGHT) dx = 1;
-        //Chase mode
-        if(pinky.mode == 0){
-            //Determine the direction pacman is moving and set target 4 spaces ahead
-            //Calculate the distance from pacman and pick position closest to him
-            pinky.target_x = pacman_x + (4*dx);
-            pinky.target_y = pacman_y + (4*dy);
-        }
-        //Scatter mode
-        else if(pinky.mode == 1){
-            //(1, 1) for top-left corner
-            pinky.target_x = 1;
-            pinky.target_y = 1;
+            pinky.target_x = 30;
+            pinky.target_y = 15;
+            
+            //Entering house (only when eaten)
+            if (abs(pinky.x - 30) <= 1 && abs(pinky.y - 15) <= 1) {
+                pinky.trapped = true;
+                pinky.time = time(NULL);
+            }
         }
         //Frightened mode
         else if(pinky.mode == 2){
-            //logic still needed
+             if(abs(pinky.x - pinky.target_x) < 1 && abs(pinky.y - pinky.target_y) < 1){
+                pinky.target_x = rand() % WIDTH;
+                pinky.target_y = rand() % HEIGHT;
+            }
+        }
+        else{
+            //Scatter/chase timer
+            if (pinky.mode < 2){
+                if (time(NULL) - start_time > 10){
+                    pinky.mode = 0; // chase
+                }
+            else{
+                pinky.mode = 1; // scatter
+            }
+        }
+        //Chase mode
+        if (pinky.mode == 0) {
+            int dx = 0, dy = 0;
+            if (direction == KEY_UP)    dy = -1;
+            if (direction == KEY_DOWN)  dy = 1;
+            if (direction == KEY_LEFT)  dx = -1;
+            if (direction == KEY_RIGHT) dx = 1;
+
+            pinky.target_x = pacman_x + 4 * dx;
+            pinky.target_y = pacman_y + 4 * dy;
+        }
+
+    //Scatter mode
+        else if (pinky.mode == 1) {
+            pinky.target_x = 1;
+            pinky.target_y = 1;
         }
     }
+
+        //Escape logic
+        if(pinky.trapped){
+            
+            pinky.free = true;
+            pinky.target_x = 30;
+            pinky.target_y = 12;
+            
+            if(pinky.y <= 12) {
+                pinky.trapped = false;
+                pinky.free = false;
+                pinky.mode = 1; // scatter after eaten
+            }
+        }
+        
+        pinky.prev_x = pinky.x;
+        pinky.prev_y = pinky.y;
+
         int pathP[4] = {0, 0, 0, 0}; //Up Down Left Right (For Pinky)
         if(stage[pinky.y - 1][pinky.x] != WALL && (stage[pinky.y - 1][pinky.x] != WALL2 || pinky.free)) pathP[0] = 1; //Up
-        if(stage[pinky.y + 1][pinky.x] != WALL && stage[pinky.y + 1][pinky.x] != WALL2) pathP[1] = 1; //Down
+        if(stage[pinky.y + 1][pinky.x] != WALL && (stage[pinky.y + 1][pinky.x] != WALL2 || pinky.free)) pathP[1] = 1; //Down
         if(stage[pinky.y][pinky.x - 1] != WALL && stage[pinky.y][pinky.x - 1] != WALL2) pathP[2] = 1; //Left
         if(stage[pinky.y][pinky.x + 1] != WALL && stage[pinky.y][pinky.x + 1] != WALL2) pathP[3] = 1; //Right
 
         double best_disP = 100000.0; //Best distance for pinky
-        int dirP; //Used for Pinky's direction
+        int dirP = pinky.dir; //Used for Pinky's direction
     
         for(int i = 0; i<4; i++){ //Check each path and determine which one is best
             //Prevents U-turns
@@ -758,7 +822,7 @@ else{
             inky.free = false;
         }
 
-        //70 dots eaten or more needed to chasing
+        //70 dots eaten or more needed to start chasing
         if(pellets_collected >= 70){
             inky.mode = 0;
         }
@@ -787,9 +851,19 @@ else{
         }
         //Frightened mode
         else if(inky.mode == 2){
-            //logic still needed
+            if(abs(inky.x - inky.target_x) < 1 && abs(inky.y - pinky.target_y) < 1){
+                inky.target_x = rand() % WIDTH;
+                inky.target_y = rand() % HEIGHT;
+            }
+        }
+        else if(inky.mode == 3){
+            inky.free = true;
+            inky.target_x = 30;
+            inky.target_y = 15;
         }
 }
+        inky.prev_x = inky.x;
+        inky.prev_y = inky.y;
         int pathI[4] = {0, 0, 0, 0}; //Up Down Left Right (For Inky)
         if(stage[inky.y - 1][inky.x] != WALL && (stage[inky.y - 1][inky.x] != WALL2 || inky.free)) pathI[0] = 1; //Up
         if(stage[inky.y + 1][inky.x] != WALL && stage[inky.y + 1][inky.x] != WALL2) pathI[1] = 1; //Down
@@ -797,7 +871,7 @@ else{
         if(stage[inky.y][inky.x + 1] != WALL && stage[inky.y][inky.x + 1] != WALL2) pathI[3] = 1; //Right
 
         double best_disI = 100000.0; //Best distance for inky
-        int dirI; //Used for inky's direction
+        int dirI = inky.dir; //Used for inky's direction
 
         for(int i = 0; i<4; i++){ //Check each path and determine which one is best
             //Prevents U-turns
@@ -874,7 +948,7 @@ else{
             clyde.free = false;
         }
 
-        //100 dots eaten or more needed to chasing
+        //100 dots eaten or more needed to start chasing
         if(pellets_collected >= 100){
             clyde.mode = 0;
         }
@@ -892,9 +966,18 @@ else{
         }
         //Frightened mode
         else if(clyde.mode == 2){
-            //logic still needed
+            if(abs(clyde.x - clyde.target_x) < 1 && abs(clyde.y - clyde.target_y) < 1){
+                clyde.target_x = rand() % WIDTH;
+                clyde.target_y = rand() % HEIGHT;
+            }
+        }
+        else if(clyde.mode == 3){
+            clyde.target_x = 30;
+            clyde.target_y = 15;
         }
 }
+        clyde.prev_x = clyde.x;
+        clyde.prev_y = clyde.y;
         int pathC[4] = {0, 0, 0, 0}; //Up Down Left Right (For Inky)
         if(stage[clyde.y - 1][clyde.x] != WALL && (stage[clyde.y - 1][clyde.x] != WALL2 || clyde.free)) pathC[0] = 1; //Up
         if(stage[clyde.y + 1][clyde.x] != WALL && stage[clyde.y + 1][clyde.x] != WALL2) pathC[1] = 1; //Down
@@ -902,7 +985,7 @@ else{
         if(stage[clyde.y][clyde.x + 1] != WALL && stage[clyde.y][clyde.x + 1] != WALL2) pathC[3] = 1; //Right
 
         double best_disC = 10000.0;
-        int dirC;
+        int dirC = clyde.dir;
         for(int i = 0; i<4; i++){ //Check each path and determine which one is best
             //Prevents U-turns
             if((i == 0 && clyde.dir == 1) || (i == 1 && clyde.dir == 0) || (i == 2 && clyde.dir == 3) || (i == 3 && clyde.dir == 2)){
@@ -964,20 +1047,59 @@ else{
         }
     }
 //End of ghost section//
+    //Detect if pacman and ghosts crossed paths or occupy the same tiles
     int eat[4] = {0, 0, 0, 0}; //Blinky, pinky, inky, clyde
-    //Potentially how the ghosts eat pacman
-    if((eat[0] = (blinky.x == pacman_x && blinky.y == pacman_y)) ||
-       (eat[1] = (pinky.x == pacman_x && pinky.y == pacman_y))   ||
-       (eat[2] = (inky.x == pacman_x && inky.y == pacman_y))     ||
-       (eat[3] = (clyde.x == pacman_x && clyde.y == pacman_y))){
+    bool sameTile = false;
+    bool crossPaths = false;
+    //Blinky
+    sameTile = (blinky.x == pacman_x && blinky.y == pacman_y);
+    crossPaths = blinky.x == pacman_old_x && blinky.y == pacman_old_y && blinky.prev_x == pacman_x && blinky.prev_y == pacman_y;
+    eat[0] = sameTile || crossPaths;
+
+    //Pinky
+    sameTile = (pinky.x == pacman_x && pinky.y == pacman_y);
+    crossPaths = pinky.x == pacman_old_x && pinky.y == pacman_old_y && pinky.prev_x == pacman_x && pinky.prev_y == pacman_y;
+    eat[1] = sameTile || crossPaths;
+
+    //Inky
+    sameTile = (inky.x == pacman_x && inky.y == pacman_y);
+    crossPaths = inky.x == pacman_old_x && inky.y == pacman_old_y && inky.prev_x == pacman_x && inky.prev_y == pacman_y;
+    eat[2] = sameTile || crossPaths;
+
+    //Clyde
+    sameTile = (clyde.x == pacman_x && clyde.y == pacman_y);
+    crossPaths = clyde.x == pacman_old_x && clyde.y == pacman_old_y && clyde.prev_x == pacman_x && clyde.prev_y == pacman_y;
+    eat[3] = sameTile || crossPaths;
+
         if(frightened){
+            blinky.mode = 2;
+            pinky.mode = 2;
+            inky.mode = 2;
+            clyde.mode = 2;
+        }
+        if(frightened_timer > 0){
+            //If a ghost comes into contact with pacman, become "eye balls" and return to ghost house
             if(eat[0]){
-                mvwaddch(game_win, blinky.y, blinky.x, ':' | COLOR_PAIR(7));
-                blinky.mode = 0; 
-            } 
-        } else{
+                blinky.mode = 3;
+                frightened = false;
+            }
+            if(eat[1]){
+                pinky.mode = 3;
+                frightened = false;
+            }
+            if(eat[2]){
+                inky.mode = 3;
+                frightened = false;
+            }
+            if(eat[3]){
+                clyde.mode = 3;
+                frightened = false;
+            }
+            frightened_timer--;
+        }
+         else if(eat[0] || eat[1] || eat[2] || eat[3]){
              lives--;
-             if(lives < 0){
+             if(lives <= 0){
                  running = false;
                  reset(1);
              } else{
@@ -985,19 +1107,73 @@ else{
                 flushinp();
              }
         }
-    }
-    else{
-        //Drawing character on screen logic. Jhan and Aiden.
-        mvwaddch(game_win, pacman_y, pacman_x, 'P' | COLOR_PAIR(1)); //https://docs.oracle.com/cd/E86824_01/html/E54767/mvwaddch-3curses.html
-        mvwaddch(game_win, blinky.y, blinky.x, 'G' | COLOR_PAIR(4));
-        mvwaddch(game_win, pinky.y, pinky.x, 'G' | COLOR_PAIR(6));
-        mvwaddch(game_win, inky.y, inky.x, 'G' | COLOR_PAIR(3));
-        mvwaddch(game_win, clyde.y, clyde.x, 'G' | COLOR_PAIR(1));
-    }
     //Check if power pellet effects are still going on -Aiden.
-    if(frightened_timer > 0) frightened_timer--;
     if(frightened_timer == 0) frightened = false;
+       
+    //Drawing character on screen logic. Jhan and Aiden.
+        if(blinky.mode == 2){ // frightened
+            if(frightened_timer % 2 == 0){
+                mvwaddch(game_win, blinky.y, blinky.x, 'G' | COLOR_PAIR(7));
+            }
+            else{
+                mvwaddch(game_win, blinky.y, blinky.x, 'G' | COLOR_PAIR(2));
+            }
+        }
+        else if(blinky.mode == 3){ // eaten (eyes)
+            mvwaddch(game_win, blinky.y, blinky.x, ':' | COLOR_PAIR(7));
+        }
+        else{ // normal
+            mvwaddch(game_win, blinky.y, blinky.x, 'G' | COLOR_PAIR(4));
+        }
 
+        if(pinky.mode == 2){ // frightened
+            if(frightened_timer % 2 == 0){
+                mvwaddch(game_win, pinky.y, pinky.x, 'G' | COLOR_PAIR(7));
+            }
+            else{
+                mvwaddch(game_win, pinky.y, pinky.x, 'G' | COLOR_PAIR(2));
+            }
+        }
+        else if(pinky.mode == 3){ // eaten (eyes)
+            mvwaddch(game_win, pinky.y, pinky.x, ':' | COLOR_PAIR(7));
+        }
+        else{ // normal
+            mvwaddch(game_win, pinky.y, pinky.x, 'G' | COLOR_PAIR(6));
+        }
+
+        if(inky.mode == 2){ // frightened
+            if(frightened_timer % 2 == 0){
+                mvwaddch(game_win, inky.y, inky.x, 'G' | COLOR_PAIR(7));
+            }
+            else{
+                mvwaddch(game_win, inky.y, inky.x, 'G' | COLOR_PAIR(2));
+            }
+        }
+        else if(inky.mode == 3){ // eaten (eyes)
+            mvwaddch(game_win, inky.y, inky.x, ':' | COLOR_PAIR(7));
+        }
+        else{ // normal
+            mvwaddch(game_win, inky.y, inky.x, 'G' | COLOR_PAIR(3));
+        }
+        
+        if(clyde.mode == 2){ // frightened
+            if(frightened_timer % 2 == 0){
+                mvwaddch(game_win, clyde.y, clyde.x, 'G' | COLOR_PAIR(7));
+            }
+            else{
+                mvwaddch(game_win, clyde.y, clyde.x, 'G' | COLOR_PAIR(2));
+            }
+        }
+        else if(clyde.mode == 3){ // eaten (eyes)
+            mvwaddch(game_win, clyde.y, clyde.x, ':' | COLOR_PAIR(7));
+        }
+        else{ // normal
+            mvwaddch(game_win, clyde.y, clyde.x, 'G' | COLOR_PAIR(1));
+        }
+        
+    
+
+    mvwaddch(game_win, pacman_y, pacman_x, 'P' | COLOR_PAIR(1)); //https://docs.oracle.com/cd/E86824_01/html/E54767/mvwaddch-3curses.html
     wrefresh(game_win); //Game window refreshed. -Jhan
     napms(100); 
    }
