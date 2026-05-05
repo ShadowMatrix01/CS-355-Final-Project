@@ -130,6 +130,7 @@ void coin_inserted(int countdown) {
 }
 //General reset and restart logic, including reset of score, points, and positions. - Jhan
 void reset(int gameMode) {
+    time_t current_time = time(NULL);
     clear();
     nodelay(stdscr, FALSE);
     if (gameMode == 2) {
@@ -191,7 +192,7 @@ void reset(int gameMode) {
     blinky.prev_x = 30;
     blinky.prev_y = 12;
     blinky.mode = 1; //Set to scatter
-    blinky.time = time(NULL);
+    blinky.time = current_time;
 
     pinky.x = 30;
     pinky.y = 15;
@@ -200,7 +201,7 @@ void reset(int gameMode) {
     pinky.mode = 1;
     pinky.trapped = true;
     pinky.free = false; 
-    pinky.time = time(NULL);
+    pinky.time = current_time;
 
     inky.x = 28;
     inky.y = 15;
@@ -209,7 +210,7 @@ void reset(int gameMode) {
     inky.mode = 1;
     inky.trapped = true;
     inky.free = false;
-    inky.time = time(NULL); 
+    inky.time = current_time; 
 
     clyde.x = 32;
     clyde.y = 15;
@@ -218,7 +219,7 @@ void reset(int gameMode) {
     clyde.mode = 1;
     clyde.trapped = true;
     clyde.free = false;
-    clyde.time = time(NULL);
+    clyde.time = current_time;
     pellets_collected = 0; //For the reset logic.
     //Switch determines what fruit to use. -Jhan
     switch (levels_beaten) {
@@ -237,11 +238,12 @@ void reset(int gameMode) {
    }
    //Blocking movement is disabled for main game. -Jhan
     nodelay(stdscr, TRUE);
-    start_time = time(NULL);
+    start_time = current_time;
     running = true;
 }
 int main(int argc, char * argv[]) {
-    srand(time(NULL)); //Needed so ghosts move randomly every frame
+    time_t current_time = time(NULL);
+    srand(current_time); //Needed so ghosts move randomly every frame
     //Sets the stage using a nested for loop. -Jhan
     for (int i = 0; i<HEIGHT; i++) {
         for (int j=0; j<WIDTH + 1; j++) {
@@ -289,7 +291,7 @@ int main(int argc, char * argv[]) {
     blinky.prev_x = 30;
     blinky.prev_y = 12;
     blinky.mode = 1; //Set to scatter
-    blinky.time = time(NULL);
+    blinky.time = current_time;
 
     pinky.x = 30;
     pinky.y = 15;
@@ -298,7 +300,7 @@ int main(int argc, char * argv[]) {
     pinky.mode = 1;
     pinky.trapped = true;
     pinky.free = false; 
-    pinky.time = time(NULL);
+    pinky.time = current_time;
 
     inky.x = 28;
     inky.y = 15;
@@ -307,7 +309,7 @@ int main(int argc, char * argv[]) {
     inky.mode = 1;
     inky.trapped = true;
     inky.free = false;
-    inky.time = time(NULL); 
+    inky.time = current_time; 
 
     clyde.x = 32;
     clyde.y = 15;
@@ -316,12 +318,14 @@ int main(int argc, char * argv[]) {
     clyde.mode = 1;
     clyde.trapped = true;
     clyde.free = false;
-    clyde.time = time(NULL);
+    clyde.time = current_time;
    //-----------------------------------------------//
    coin_inserted(10); //To give the user some time before the game begins. -Jhan
-   start_time = time(NULL);
+   start_time = current_time;
    while (running) {
+    time_t current_time = time(NULL);
     if (pellets_collected == 150) { //Mission complete logic -Jhan
+        running = false;
         levels_beaten++;
         reset(2);
         flushinp(); //https://pubs.opengroup.org/onlinepubs/7908799/xcurses/flushinp.html, Removes all input
@@ -338,7 +342,7 @@ int main(int argc, char * argv[]) {
     mvwaddch(game_win, pacman_y, pacman_x, ' '); //Needed to clear trailing output, similar to pygame.
     //Timer is also like pygame, I couldn't use sleep since sleep blocks the CPU -Jhan.
     if (start_timer_fruit) {
-		if (time(NULL) >= fruit_end_time) {
+		if (current_time >= fruit_end_time) {
 			stage[17][29] = EATEN;
 			start_timer_fruit = false;
 		}
@@ -348,7 +352,7 @@ int main(int argc, char * argv[]) {
 		stage[17][29] = fruit;
 		start_timer_fruit = true;
 		going_once = false;
-		fruit_end_time = time(NULL) + 10; //Takes the current time and adds 10 seconds, like in the original game.
+		fruit_end_time = current_time + 10; //Takes the current time and adds 10 seconds, like in the original game.
 	}
     for (int y = 0; y < HEIGHT; y++) { //This loop draws the stage as it evolves. Starting with the y axis, or the columns. -Jhan
 		for (int x = 0; x < WIDTH; x++) { //Same as above, but for x axis
@@ -568,7 +572,7 @@ int main(int argc, char * argv[]) {
     else{
         //Determines when to start chasing pacman
         if (blinky.mode < 2) {
-            if (time(NULL) - start_time > 10) {
+            if (current_time - start_time > 10) {
                 blinky.mode = 0; // Chase
             } else {
                 blinky.mode = 1; // Scatter
@@ -580,7 +584,7 @@ int main(int argc, char * argv[]) {
             blinky.target_y = pacman_y;
         }
         //Scatter mode
-        if((time(NULL) - start_time <= 10)|| blinky.mode == 1){
+        if((current_time - start_time <= 10)|| blinky.mode == 1){
             //(58, 1) for top-right corner
             blinky.target_x = 58;
             blinky.target_y = 1;
@@ -681,7 +685,7 @@ int main(int argc, char * argv[]) {
             //Entering house (only when eaten)
             if (abs(pinky.x - 30) <= 1 && abs(pinky.y - 15) <= 1) {
                 pinky.trapped = true;
-                pinky.time = time(NULL);
+                pinky.time = current_time;
             }
         }
         //Frightened mode
@@ -694,7 +698,7 @@ int main(int argc, char * argv[]) {
         else{
             //Scatter/chase timer
             if (pinky.mode < 2){
-                if (time(NULL) - start_time > 10){
+                if (current_time - start_time > 10){
                     pinky.mode = 0; // chase
                 }
             else{
