@@ -220,7 +220,9 @@ void reset(int gameMode) {
     clyde.trapped = true;
     clyde.free = false;
     clyde.time = current_time;
-    pellets_collected = 0; //For the reset logic.
+    if (gameMode == 1 || gameMode == 2) { //Only when a hard reset should the pellet count be reset, this caused issues. -Jhan
+        pellets_collected = 0;
+    }
     //Switch determines what fruit to use. -Jhan
     switch (levels_beaten) {
      case 0: fruit = CHERRY;
